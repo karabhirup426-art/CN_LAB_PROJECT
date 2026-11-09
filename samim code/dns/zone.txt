@@ -1,0 +1,29 @@
+# Zone file for cse.myuniv.edu  (the same names as Assignment 6, Q7)
+#
+#   name    type    value
+#
+# PTR records for every A record below are added automatically (reverse lookup).
+#
+# "@" means the zone name itself. A name without a final dot gets
+# ".cse.myuniv.edu" added to it; a name ending in "." is used as it is.
+
+$ORIGIN cse.myuniv.edu.
+$TTL    300
+
+@       NS      dns
+@       MX      10 mail
+@       A       192.168.151.1
+
+dns     A       192.168.151.3
+dhcp    A       192.168.151.2
+www     A       192.168.151.4
+ftp     A       192.168.151.5
+mail    A       192.168.151.6
+
+# an alias: web.cse.myuniv.edu is another name for www
+web     CNAME   www
+# an alias of an alias, to show the server following the chain
+portal  CNAME   web
+
+# the server's own address, so that "nslookup ... 127.0.0.1" can print our name
+1.0.0.127.in-addr.arpa.  PTR  dns
