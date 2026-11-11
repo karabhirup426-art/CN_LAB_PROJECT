@@ -5,7 +5,7 @@
 
 | Basket | Protocol Chosen | Layer | Implementation | Transport Protocol |
 |---|---|---|---|---|
-| **Basket 1** | **ARP** (Address Resolution Protocol) | Data Link / Network | `samim code/arp/` | UDP (simulated Ethernet switch, RFC 826) |
+| **Basket 1** | **ARP** (Address Resolution Protocol) | Data Link / Network | `arp/` | UDP (simulated Ethernet switch, RFC 826) |
 | **Basket 2** | **DNS** (Domain Name System) | Transport / Infrastructure | `samim code/dns/` | UDP port 53 (RFC 1035) |
 | **Basket 3** | **FTP** (File Transfer Protocol) | Application Layer | `ftp/` | TCP port 2121 (RFC 959) |
 
@@ -23,7 +23,7 @@
 
 ### 1. ARP Demonstration
 ```bash
-cd "samim code/arp"
+cd arp
 python demo.py --hex
 ```
 
@@ -44,9 +44,9 @@ python demo.py
 
 ## Running Unit Tests
 ```bash
-cd "samim code/arp" && python -m unittest test_arp -v
+cd arp && python -m unittest test_arp -v
 cd "samim code/dns" && python -m unittest test_dns -v
 cd ftp && python -m unittest test_ftp -v
 ```
 
-See [`samim code/HOW_TO_SHOW.md`](samim%20code/HOW_TO_SHOW.md) and [`ftp/HOW_TO_SHOW_FTP.md`](ftp/HOW_TO_SHOW_FTP.md) for detailed multi-terminal live demonstration scripts and viva examination questions.
+See [`arp/HOW_TO_SHOW_ARP.md`](arp/HOW_TO_SHOW_ARP.md), [`samim code/HOW_TO_SHOW.md`](samim%20code/HOW_TO_SHOW.md) and [`ftp/HOW_TO_SHOW_FTP.md`](ftp/HOW_TO_SHOW_FTP.md) for detailed multi-terminal live demonstration scripts and viva examination questions.
