@@ -1,0 +1,3 @@
+Hello from the FTP Client!
+This file was uploaded from client/uploads/upload_test.txt using the STOR command over a TCP data connection.
+Integrity check passed!

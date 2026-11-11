@@ -1,8 +1,8 @@
-# Group Project: How to show ARP and DNS from the command line
+# Group Project: How to show ARP, DNS and FTP from the command line
 
-SAMIM SEKH | Roll No. 002310501026 | CSE/PC/B/S/314 Computer Networks Lab
+CSE/PC/B/S/314 Computer Networks Lab
 
-Only standard Python is needed. Open terminals inside the `arp` or `dns` folder.
+Only standard Python is needed. Open terminals inside the `arp`, `dns` or `ftp` folder.
 
 ---
 
@@ -114,6 +114,64 @@ nslookup first asks for the server's own name (a PTR query for `1.0.0.127.in-add
 
 ---
 
+## Part 3: FTP
+
+### 3a. Quick demo, one command (about 15 s)
+
+```
+cd ftp
+python demo.py
+```
+
+Add `--step` to pause between steps. Point out:
+
+| Step | What to say |
+|---|---|
+| 1 | The server starts on **TCP control port 2121**. `zone.txt` in our DNS part already maps `ftp.cse.myuniv.edu` to `192.168.151.5`. |
+| 2 | Client completes the **TCP 3-way handshake** on control port 2121. Server answers with RFC 959 greeting: `220 Welcome to CN Lab Python Socket FTP Server`. |
+| 3 | **Authentication**: `USER student` -> `331 password required`. Wrong password rejected with `530 Authentication failed`. Valid password `PASS cnlab2026` logs in with `230`. Anonymous login is also supported. |
+| 4 | Working directory query: `PWD` -> `257 "/" is current directory`. |
+| 5 | **Out-of-Band Data Connection (PASV)**: Client sends `PASV`. Server opens an ephemeral TCP data port and replies `227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)`. Client connects to this data port and requests `LIST`. Server streams directory listing, closes data socket, and replies `226 Directory send OK`. |
+| 6 | **Upload (STOR)**: 32 KB binary file is streamed over a dynamic PASV data socket. Client closes data socket (sending TCP FIN) to signal EOF. Server replies `226 Transfer complete`. |
+| 7 | **File size**: `SIZE uploaded_report.pdf` returns `213 32837` bytes. |
+| 8 | **Download (RETR)**: Download file back over another dynamic data connection. |
+| 9 | **Data Integrity (MD5)**: The local file's MD5 checksum matches the downloaded file's MD5 checksum byte-for-byte, proving TCP's zero-loss guarantee. |
+| 10| **Security / Sandboxing**: Directory traversal attack (`CWD ../../`) is blocked with `550`, keeping the user inside the jailed root directory. |
+| 11| **Termination**: Client sends `QUIT`. Server responds `221 Goodbye` and closes the TCP control connection. |
+
+### 3b. Live, in separate terminals
+
+Terminal 1 (FTP Server):
+```
+cd ftp
+python ftp_server.py --port 2121
+```
+
+Terminal 2 (Interactive FTP Client):
+```
+cd ftp
+python ftp_client.py --port 2121
+```
+
+Type inside the client:
+```text
+ls
+pwd
+put uploads/report.pdf
+size report.pdf
+get report.pdf downloads/test.pdf
+debug on
+delete report.pdf
+quit
+```
+
+With curl (proves RFC 959 compliance):
+```bash
+curl -u student:cnlab2026 ftp://127.0.0.1:2121/
+```
+
+---
+
 ## Viva questions
 
 **ARP**
@@ -134,3 +192,10 @@ nslookup first asks for the server's own name (a PTR query for `1.0.0.127.in-add
 - *NXDOMAIN vs NOERROR with no answer?* NXDOMAIN: the name does not exist. NOERROR with no answer: the name exists but has no record of that type.
 - *What is a compression pointer?* A repeated name is replaced by 2 bytes starting with bits `11` that point to where the name already appeared. We read them (8.8.8.8 uses them) and always write full names, which is also allowed.
 - *What is a CNAME?* An alias: one name pointing to another canonical name. The server follows the chain and returns every step.
+
+**FTP**
+- *Why TCP instead of UDP?* File transfers require 100% loss-free, sequenced delivery. TCP provides sequence numbers, ACKs, automatic retransmissions, and flow/congestion control.
+- *Why two connections (Control and Data)?* Out-of-band signaling. The Control Connection (port 21/2121) remains open for commands/responses, while the Data Connection is opened on-demand for transferring file bytes or directory listings.
+- *Passive Mode (PASV) vs Active Mode (PORT)?* In PASV mode, the server opens a data port and the client connects to it (NAT/firewall friendly). In PORT mode, the client opens a data port and the server connects back to it (often blocked by client firewalls).
+- *How is the port computed from (h1,h2,h3,h4,p1,p2)?* Port = (p1 * 256) + p2.
+- *How does the server know when an upload is finished?* The client closes the data socket, sending a TCP FIN. The server's `recv()` returns 0 bytes (EOF).
