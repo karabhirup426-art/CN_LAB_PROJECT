@@ -1,0 +1,1989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CN Lab Interactive Protocol Sandbox (ARP • DNS • FTP)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .node-card {
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+    .node-card.active-node {
+      transform: translate(-50%, -50%) scale(1.04);
+      box-shadow: 0 0 22px rgba(56, 189, 248, 0.35);
+    }
+    .node-card.idle-node {
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .node-card.alarm-node {
+      animation: alarm-shake 0.45s ease-in-out 2;
+      box-shadow: 0 0 24px rgba(248, 113, 113, 0.65);
+    }
+    @keyframes alarm-shake {
+      0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+      25% { transform: translate(-50%, -50%) translateX(-5px); }
+      75% { transform: translate(-50%, -50%) translateX(5px); }
+    }
+    .hex-group {
+      transition: background-color 0.15s ease, color 0.15s ease;
+      border-radius: 3px;
+      padding: 1px 3px;
+      cursor: pointer;
+    }
+    .hex-group.highlighted, .field-row.highlighted {
+      background-color: rgba(56, 189, 248, 0.28) !important;
+      outline: 1px solid rgba(56, 189, 248, 0.8);
+    }
+    .field-row {
+      transition: background-color 0.15s ease;
+      border-radius: 4px;
+      padding: 2px 5px;
+      cursor: pointer;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.35);
+      border-radius: 3px;
+    }
+    .pkt-badge {
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background,#0f172a)] text-[var(--foreground,#f8fafc)] antialiased p-3 m-0 min-h-screen">
+  <div class="max-w-7xl mx-auto space-y-3">
+
+    <!-- Header & Navigation -->
+    <header class="flex flex-wrap items-center justify-between gap-3 p-3 bg-[var(--card,#1e293b)] rounded-xl border border-[var(--card-border,#334155)] shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-base border border-sky-500/30">
+          CN
+        </div>
+        <div>
+          <h1 class="text-sm sm:text-base font-bold tracking-tight">Interactive Protocol Simulation Sandbox</h1>
+          <p class="text-xs text-[var(--muted-foreground,#94a3b8)]">Hands-On Lab: ARP (RFC 826) • DNS (RFC 1035) • FTP (RFC 959)</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Speed Slider -->
+        <label class="flex items-center gap-2 text-xs text-[var(--muted-foreground,#94a3b8)] bg-black/20 px-2.5 py-1.5 rounded-lg border border-[var(--card-border,#334155)]">
+          <span>Speed</span>
+          <input id="speed-select" type="range" min="0" max="2" step="1" value="1" class="w-16 accent-sky-500 cursor-pointer" oninput="updateSpeedLabel()" />
+          <span id="speed-label" class="font-mono text-[var(--foreground,#f8fafc)] w-7">1x</span>
+        </label>
+
+        <!-- Protocol Tabs -->
+        <nav class="flex flex-wrap items-center gap-1 bg-black/20 p-1 rounded-lg border border-[var(--card-border,#334155)] text-xs font-medium">
+          <button onclick="switchTab('arp')" id="tab-arp" class="px-3 py-1.5 rounded-md transition-colors">1. ARP Sandbox</button>
+          <button onclick="switchTab('dns')" id="tab-dns" class="px-3 py-1.5 rounded-md transition-colors">2. DNS Sandbox</button>
+          <button onclick="switchTab('ftp')" id="tab-ftp" class="px-3 py-1.5 rounded-md transition-colors">3. FTP Sandbox</button>
+          <button onclick="switchTab('story')" id="tab-story" class="px-3 py-1.5 rounded-md transition-colors">★ End-to-End Stack</button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+
+      <!-- LEFT: Topology Stage + Wire Inspector (7 cols) -->
+      <div class="lg:col-span-7 flex flex-col gap-3">
+        <!-- Topology Canvas -->
+        <section class="relative bg-[var(--card,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl p-3 flex flex-col justify-between min-h-[370px] overflow-hidden shadow-sm">
+          <div class="flex items-center justify-between gap-2 z-10 pb-2 border-b border-[var(--card-border,#334155)]">
+            <div class="flex items-center gap-2">
+              <span id="stage-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <h2 id="stage-title" class="text-xs sm:text-sm font-bold">ARP Local Area Network</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="stage-status" class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 font-mono text-xs">Idle — Ready for Action</span>
+            </div>
+          </div>
+
+          <!-- Network Stage Area -->
+          <div id="network-stage" class="relative w-full h-[290px] my-1 select-none">
+            <svg id="stage-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0">
+              <g id="svg-links"></g>
+              <g id="svg-packets"></g>
+            </svg>
+            <div id="nodes-layer" class="absolute inset-0 z-10"></div>
+            <div id="badges-layer" class="absolute inset-0 z-20 pointer-events-none"></div>
+          </div>
+
+          <!-- Conflict / Alert Banner (Dynamic) -->
+          <div id="stage-banner" class="hidden z-20 px-3 py-1.5 rounded-lg text-xs font-mono border flex items-center justify-between gap-2">
+            <span id="stage-banner-text"></span>
+            <button onclick="hideBanner()" class="text-xs underline opacity-80 hover:opacity-100">Dismiss</button>
+          </div>
+        </section>
+
+        <!-- Interactive Byte-Level Wire Inspector -->
+        <section class="bg-[var(--card,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl p-3 space-y-2 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-[var(--card-border,#334155)] text-xs">
+            <span class="font-bold flex items-center gap-1.5">
+              <span class="text-sky-400 font-mono">&lt;/&gt;</span>
+              Interactive Wire Packet Inspector
+              <span class="text-[var(--muted-foreground,#94a3b8)] font-normal">(Hover or click fields to highlight bytes)</span>
+            </span>
+            <span id="wire-badge" class="font-mono text-xs text-emerald-400">No frame sent yet</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono">
+            <!-- Hex Bytes -->
+            <div class="bg-black/35 rounded-lg p-2.5 border border-[var(--card-border,#334155)] custom-scroll max-h-44 overflow-y-auto">
+              <div class="text-xs font-sans font-semibold text-[var(--muted-foreground,#94a3b8)] mb-1.5">RAW WIRE BYTES (HEX):</div>
+              <div id="wire-hex" class="flex flex-wrap gap-1 text-xs leading-relaxed">
+                <span class="text-[var(--muted-foreground,#94a3b8)] italic font-sans">Trigger an operation on the right to inspect real RFC wire bytes.</span>
+              </div>
+            </div>
+
+            <!-- Decoded Fields -->
+            <div class="bg-black/35 rounded-lg p-2.5 border border-[var(--card-border,#334155)] custom-scroll max-h-44 overflow-y-auto">
+              <div class="text-xs font-sans font-semibold text-[var(--muted-foreground,#94a3b8)] mb-1.5">DECODED PROTOCOL FIELDS:</div>
+              <div id="wire-fields" class="space-y-1 text-xs">
+                <span class="text-[var(--muted-foreground,#94a3b8)] italic font-sans">Decoded header &amp; payload fields appear here.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Socket Log & Protocol Trace -->
+        <section class="bg-[var(--card,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl p-3 space-y-2 shadow-sm">
+          <div class="flex items-center justify-between text-xs pb-1 border-b border-[var(--card-border,#334155)]">
+            <span class="font-bold flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              Live Socket &amp; Protocol Event Log
+            </span>
+            <button onclick="clearLogs()" class="text-xs text-[var(--muted-foreground,#94a3b8)] hover:text-[var(--foreground,#f8fafc)] px-2 py-0.5 rounded bg-black/20">Clear Log</button>
+          </div>
+          <div id="event-log" class="bg-black/40 rounded-lg p-2 text-xs font-mono h-36 overflow-y-auto custom-scroll space-y-1 border border-[var(--card-border,#334155)]"></div>
+        </section>
+      </div>
+
+      <!-- RIGHT: Interactive Controls + Live Stateful Tables (5 cols) -->
+      <div class="lg:col-span-5 flex flex-col gap-3">
+        <!-- Dynamic Control Panel for Active Tab -->
+        <section id="controls-panel" class="bg-[var(--card,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl p-3 space-y-3 shadow-sm">
+          <!-- Populated per tab -->
+        </section>
+
+        <!-- Dynamic State Tables for Active Tab -->
+        <section id="tables-panel" class="bg-[var(--card,#1e293b)] border border-[var(--card-border,#334155)] rounded-xl p-3 space-y-3 shadow-sm flex-1">
+          <!-- Populated per tab -->
+        </section>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // GLOBAL STATE & UTILITIES
+    // =========================================================================
+    let activeTab = 'arp';
+    let animBusy = false;
+    let speedMultiplier = 1; // 0: 0.5x (slow), 1: 1x (normal), 2: 2x (fast)
+    const SPEED_FACTORS = [1.8, 1.0, 0.45];
+    let t0 = Date.now();
+    let currentNodes = [];
+    let currentLinks = [];
+    let activeTimers = [];
+
+    function elapsedStr() {
+      return ((Date.now() - t0) / 1000).toFixed(2).padStart(6, ' ') + 's';
+    }
+
+    function updateSpeedLabel() {
+      const val = parseInt(document.getElementById('speed-select').value, 10);
+      speedMultiplier = val;
+      document.getElementById('speed-label').textContent = ['0.5x', '1x', '2x'][val];
+    }
+
+    function dur(ms) {
+      return Math.max(120, Math.round(ms * SPEED_FACTORS[speedMultiplier]));
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, dur(ms)));
+    }
+
+    function setStatus(text, tone = 'sky') {
+      const el = document.getElementById('stage-status');
+      const tones = {
+        sky: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+        emerald: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+        amber: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+        red: 'bg-red-500/20 text-red-300 border-red-500/30',
+        purple: 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+      };
+      el.className = `px-2 py-0.5 rounded border font-mono text-xs ${tones[tone] || tones.sky}`;
+      el.textContent = text;
+    }
+
+    function showBanner(text, tone = 'red') {
+      const b = document.getElementById('stage-banner');
+      const t = document.getElementById('stage-banner-text');
+      const cls = tone === 'red'
+        ? 'bg-red-500/20 border-red-500/50 text-red-200'
+        : tone === 'emerald'
+          ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200'
+          : 'bg-amber-500/20 border-amber-500/50 text-amber-200';
+      b.className = `z-20 px-3 py-1.5 rounded-lg text-xs font-mono border flex items-center justify-between gap-2 ${cls}`;
+      t.textContent = text;
+    }
+
+    function hideBanner() {
+      document.getElementById('stage-banner').className = 'hidden';
+    }
+
+    function addLog(text, tone = 'info') {
+      const log = document.getElementById('event-log');
+      const colors = {
+        info: 'text-slate-300',
+        tx: 'text-sky-300',
+        rx: 'text-emerald-300',
+        warn: 'text-amber-300',
+        err: 'text-red-300',
+        sys: 'text-purple-300'
+      };
+      const div = document.createElement('div');
+      div.className = `${colors[tone] || colors.info} leading-snug`;
+      div.innerHTML = `<span class="text-slate-500">[${elapsedStr()}]</span> ${escapeHtml(text)}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function clearLogs() {
+      document.getElementById('event-log').innerHTML = '';
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function macForIp(ip) {
+      const p = ip.split('.').map(Number);
+      if (p.length !== 4 || p.some(n => Number.isNaN(n) || n < 0 || n > 255)) return null;
+      return '02:00:' + p.map(n => n.toString(16).padStart(2, '0')).join(':');
+    }
+
+    function ipToHexBytes(ip) {
+      return ip.split('.').map(n => Number(n).toString(16).padStart(2, '0'));
+    }
+
+    function macToHexBytes(mac) {
+      return mac.split(':').map(h => h.padStart(2, '0'));
+    }
+
+    function pseudoMd5(name, size) {
+      let h1 = 0x9e3779b9, h2 = 0x85ebca6b;
+      const s = name + ':' + size;
+      for (let i = 0; i < s.length; i++) {
+        h1 = Math.imul(h1 ^ s.charCodeAt(i), 0x45d9f3b);
+        h2 = Math.imul(h2 ^ s.charCodeAt(i), 0x27d4eb2f);
+      }
+      const p = v => (v >>> 0).toString(16).padStart(8, '0');
+      return p(h1) + p(h2) + p(h1 ^ h2) + p((h1 + h2) >>> 0);
+    }
+
+    // =========================================================================
+    // WIRE PACKET INSPECTOR (Interactive Hover/Click Byte Highlighting)
+    // =========================================================================
+    function renderWirePacket(summary, segments) {
+      // segments: [{ label, value, bytes: ['ff','ff',...], colorClass }]
+      document.getElementById('wire-badge').textContent = summary;
+      const hexBox = document.getElementById('wire-hex');
+      const fieldsBox = document.getElementById('wire-fields');
+
+      if (!segments || segments.length === 0) {
+        hexBox.innerHTML = `<span class="text-emerald-300 text-xs font-sans">0 bytes transmitted on the wire (served directly from memory cache).</span>`;
+        fieldsBox.innerHTML = `<div class="text-xs text-slate-300 font-sans">Cache Hit avoids all network transmission and latency.</div>`;
+        return;
+      }
+
+      hexBox.innerHTML = segments.map((seg, idx) => {
+        const bytesStr = seg.bytes.join(' ');
+        return `<span data-seg="${idx}" class="hex-group ${seg.colorClass || 'text-sky-300'}" onmouseenter="highlightSeg(${idx}, true)" onmouseleave="highlightSeg(${idx}, false)" onclick="highlightSeg(${idx}, true)">${bytesStr}</span>`;
+      }).join(' ');
+
+      fieldsBox.innerHTML = segments.map((seg, idx) => {
+        return `<div data-seg="${idx}" class="field-row flex items-start justify-between gap-2" onmouseenter="highlightSeg(${idx}, true)" onmouseleave="highlightSeg(${idx}, false)" onclick="highlightSeg(${idx}, true)">
+          <span class="text-[var(--muted-foreground,#94a3b8)] shrink-0">${escapeHtml(seg.label)}:</span>
+          <span class="${seg.colorClass || 'text-sky-300'} text-right break-all">${escapeHtml(seg.value)}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function highlightSeg(idx, on) {
+      document.querySelectorAll(`[data-seg="${idx}"]`).forEach(el => {
+        if (on) el.classList.add('highlighted');
+        else el.classList.remove('highlighted');
+      });
+    }
+
+    // =========================================================================
+    // STAGE RENDERER & ASYNC ANIMATION ENGINE
+    // =========================================================================
+    function renderStage(nodes, links) {
+      currentNodes = nodes;
+      currentLinks = links;
+      const svgLinks = document.getElementById('svg-links');
+      const nodesLayer = document.getElementById('nodes-layer');
+      svgLinks.innerHTML = '';
+      nodesLayer.innerHTML = '';
+
+      const map = {};
+      nodes.forEach(n => { map[n.id] = n; });
+
+      links.forEach(l => {
+        const a = map[l.from];
+        const b = map[l.to];
+        if (!a || !b) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('id', `link-${l.from}-${l.to}`);
+        line.setAttribute('x1', `${a.x}%`);
+        line.setAttribute('y1', `${a.y}%`);
+        line.setAttribute('x2', `${b.x}%`);
+        line.setAttribute('y2', `${b.y}%`);
+        line.setAttribute('stroke', l.active ? (l.color || '#38bdf8') : '#475569');
+        line.setAttribute('stroke-width', l.active ? '3' : '2');
+        if (!l.solid) line.setAttribute('stroke-dasharray', l.dashed || '5 4');
+        svgLinks.appendChild(line);
+      });
+
+      nodes.forEach(n => {
+        const card = document.createElement('div');
+        card.id = `node-${n.id}`;
+        card.className = `node-card idle-node absolute p-2.5 rounded-xl border shadow-md ${n.bgClass} ${n.selected ? 'ring-2 ring-sky-400 border-sky-300' : 'border-white/20'} ${n.clickable ? 'cursor-pointer hover:brightness-110' : ''}`;
+        card.style.left = `${n.x}%`;
+        card.style.top = `${n.y}%`;
+        card.style.minWidth = n.minWidth || '138px';
+        if (n.onclick) card.onclick = n.onclick;
+        card.innerHTML = n.html;
+        nodesLayer.appendChild(card);
+      });
+    }
+
+    function flashNode(nodeId, kind = 'active') {
+      const el = document.getElementById(`node-${nodeId}`);
+      if (!el) return;
+      if (kind === 'alarm') {
+        el.classList.add('alarm-node', 'ring-2', 'ring-red-400');
+        setTimeout(() => el.classList.remove('alarm-node', 'ring-2', 'ring-red-400'), dur(1600));
+      } else {
+        el.classList.add('active-node');
+        setTimeout(() => el.classList.remove('active-node'), dur(650));
+      }
+    }
+
+    function showNodeToast(nodeId, text, tone = 'sky') {
+      const node = currentNodes.find(n => n.id === nodeId);
+      if (!node) return;
+      const layer = document.getElementById('badges-layer');
+      const badge = document.createElement('div');
+      const tones = {
+        sky: 'bg-sky-600 text-white border-sky-300',
+        emerald: 'bg-emerald-600 text-white border-emerald-300',
+        amber: 'bg-amber-600 text-white border-amber-300',
+        red: 'bg-red-600 text-white border-red-300',
+        slate: 'bg-slate-700 text-slate-200 border-slate-400'
+      };
+      badge.className = `pkt-badge absolute -translate-x-1/2 -translate-y-full px-2 py-0.5 rounded-md border text-xs font-mono shadow-lg whitespace-nowrap ${tones[tone] || tones.sky}`;
+      badge.style.left = `${node.x}%`;
+      badge.style.top = `calc(${node.y}% - 34px)`;
+      badge.textContent = text;
+      layer.appendChild(badge);
+      setTimeout(() => {
+        badge.style.opacity = '0';
+        setTimeout(() => badge.remove(), 220);
+      }, dur(1250));
+    }
+
+    function animatePacket(fromId, toId, label, color = '#38bdf8', durationMs = 650) {
+      return new Promise(resolve => {
+        const a = currentNodes.find(n => n.id === fromId);
+        const b = currentNodes.find(n => n.id === toId);
+        if (!a || !b) { resolve(); return; }
+
+        const stage = document.getElementById('network-stage');
+        const svgPackets = document.getElementById('svg-packets');
+        const badgesLayer = document.getElementById('badges-layer');
+
+        const realDur = dur(durationMs);
+
+        // Highlight link temporarily
+        const linkEl = document.getElementById(`link-${fromId}-${toId}`) || document.getElementById(`link-${toId}-${fromId}`);
+        const prevStroke = linkEl ? linkEl.getAttribute('stroke') : null;
+        const prevWidth = linkEl ? linkEl.getAttribute('stroke-width') : null;
+        if (linkEl) {
+          linkEl.setAttribute('stroke', color);
+          linkEl.setAttribute('stroke-width', '3.5');
+        }
+
+        // Floating label + dot in HTML layer for crisp positioning
+        const pkt = document.createElement('div');
+        pkt.className = 'pkt-badge absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1';
+        pkt.style.left = `${a.x}%`;
+        pkt.style.top = `${a.y}%`;
+        pkt.innerHTML = `
+          <span class="px-1.5 py-0.5 rounded text-xs font-mono font-bold shadow-md whitespace-nowrap border" style="background:${color}; color:#0f172a; border-color:#ffffff80">${escapeHtml(label)}</span>
+          <span class="w-3.5 h-3.5 rounded-full border-2 border-white shadow-md" style="background:${color}; box-shadow: 0 0 10px ${color}"></span>
+        `;
+        badgesLayer.appendChild(pkt);
+
+        const start = performance.now();
+        function frame(now) {
+          const p = Math.min(1, (now - start) / realDur);
+          const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+          const cx = a.x + (b.x - a.x) * eased;
+          const cy = a.y + (b.y - a.y) * eased;
+          pkt.style.left = `${cx}%`;
+          pkt.style.top = `${cy}%`;
+          if (p < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            pkt.remove();
+            if (linkEl && prevStroke !== null) {
+              linkEl.setAttribute('stroke', prevStroke);
+              linkEl.setAttribute('stroke-width', prevWidth);
+            }
+            flashNode(toId);
+            resolve();
+          }
+        }
+        flashNode(fromId);
+        requestAnimationFrame(frame);
+      });
+    }
+
+    // =========================================================================
+    // TAB 1: INTERACTIVE ARP SANDBOX (RFC 826)
+    // =========================================================================
+    const arpState = {
+      selectedHost: 'A',
+      targetIp: '192.168.1.20',
+      msgText: 'Hello from Host A!',
+      cacheTtl: 60,
+      hosts: {
+        A: { id: 'A', name: 'Host A', ip: '192.168.1.10', mac: '02:00:c0:a8:01:0a', port: 1, x: 18, y: 24, color: 'bg-blue-700/90', cache: {}, inbox: [] },
+        B: { id: 'B', name: 'Host B', ip: '192.168.1.20', mac: '02:00:c0:a8:01:14', port: 2, x: 82, y: 24, color: 'bg-emerald-700/90', cache: {}, inbox: [] },
+        C: { id: 'C', name: 'Host C', ip: '192.168.1.30', mac: '02:00:c0:a8:01:1e', port: 3, x: 50, y: 84, color: 'bg-purple-700/90', cache: {}, inbox: [] }
+      },
+      switchMacTable: {} // mac -> port
+    };
+
+    function buildArpWireSegments(dstEthMac, srcEthMac, oper, sha, spa, tha, tpa) {
+      const opLabel = oper === 1 ? '00 01 (ARP Request)' : '00 02 (ARP Reply)';
+      return [
+        { label: 'Eth Dst MAC (6B)', value: dstEthMac, bytes: macToHexBytes(dstEthMac), colorClass: 'text-amber-300' },
+        { label: 'Eth Src MAC (6B)', value: srcEthMac, bytes: macToHexBytes(srcEthMac), colorClass: 'text-sky-300' },
+        { label: 'EtherType (2B)', value: '0x0806 (ARP)', bytes: ['08', '06'], colorClass: 'text-purple-300' },
+        { label: 'HTYPE / PTYPE (4B)', value: '1 (Eth) / 0x0800 (IPv4)', bytes: ['00', '01', '08', '00'], colorClass: 'text-slate-300' },
+        { label: 'HLEN / PLEN (2B)', value: '6 / 4', bytes: ['06', '04'], colorClass: 'text-slate-300' },
+        { label: 'Opcode (2B)', value: opLabel, bytes: ['00', oper === 1 ? '01' : '02'], colorClass: 'text-emerald-300' },
+        { label: 'Sender MAC SHA (6B)', value: sha, bytes: macToHexBytes(sha), colorClass: 'text-sky-300' },
+        { label: 'Sender IP SPA (4B)', value: spa, bytes: ipToHexBytes(spa), colorClass: 'text-sky-300' },
+        { label: 'Target MAC THA (6B)', value: tha, bytes: macToHexBytes(tha), colorClass: 'text-amber-300' },
+        { label: 'Target IP TPA (4B)', value: tpa, bytes: ipToHexBytes(tpa), colorClass: 'text-amber-300' }
+      ];
+    }
+
+    function buildIpv4WireSegments(dstMac, srcMac, srcIp, dstIp, msg) {
+      const payloadStr = `${srcIp}|${dstIp}|${msg}`;
+      const payloadBytes = Array.from(new TextEncoder().encode(payloadStr)).slice(0, 24).map(b => b.toString(16).padStart(2, '0'));
+      return [
+        { label: 'Eth Dst MAC (6B)', value: dstMac, bytes: macToHexBytes(dstMac), colorClass: 'text-emerald-300' },
+        { label: 'Eth Src MAC (6B)', value: srcMac, bytes: macToHexBytes(srcMac), colorClass: 'text-sky-300' },
+        { label: 'EtherType (2B)', value: '0x0800 (IPv4)', bytes: ['08', '00'], colorClass: 'text-purple-300' },
+        { label: 'L3/App Payload', value: payloadStr, bytes: payloadBytes, colorClass: 'text-slate-200' }
+      ];
+    }
+
+    function arpLearn(hostKey, ip, mac, type = 'dynamic') {
+      const h = arpState.hosts[hostKey];
+      const old = h.cache[ip];
+      h.cache[ip] = {
+        mac,
+        type,
+        ttl: type === 'static' ? Infinity : arpState.cacheTtl
+      };
+      if (!old) addLog(`[Host ${hostKey}] ARP cache: Added ${ip} -> ${mac} (${type})`, 'rx');
+      else if (old.mac !== mac) addLog(`[Host ${hostKey}] ARP cache: Updated ${ip} -> ${mac} (was ${old.mac})`, 'warn');
+      else addLog(`[Host ${hostKey}] ARP cache: Refreshed ${ip} -> ${mac} (TTL reset)`, 'info');
+    }
+
+    function arpLookup(hostKey, ip) {
+      const h = arpState.hosts[hostKey];
+      const entry = h.cache[ip];
+      if (!entry) return null;
+      if (entry.type !== 'static' && entry.ttl <= 0) {
+        delete h.cache[ip];
+        return null;
+      }
+      return entry.mac;
+    }
+
+    function renderArpTab() {
+      document.getElementById('stage-title').textContent = 'Basket 1: Interactive ARP LAN Sandbox (RFC 826)';
+      const nodes = [
+        {
+          id: 'SW', x: 50, y: 50, bgClass: 'bg-slate-800/95', minWidth: '150px',
+          html: `
+            <div class="flex items-center justify-between gap-2 pb-1 border-b border-white/15">
+              <span class="font-bold text-xs text-white">L2 Learning Switch</span>
+              <span class="text-xs px-1.5 rounded bg-black/40 font-mono text-sky-300">802.1D</span>
+            </div>
+            <div class="text-xs font-mono text-slate-300 pt-1">
+              Learned MACs: <span class="text-emerald-300 font-bold">${Object.keys(arpState.switchMacTable).length}</span> / 3
+            </div>`
+        },
+        ...Object.values(arpState.hosts).map(h => {
+          const cnt = Object.keys(h.cache).length;
+          const isSel = arpState.selectedHost === h.id;
+          return {
+            id: h.id, x: h.x, y: h.y, bgClass: h.color, clickable: true, selected: isSel,
+            onclick: () => { arpState.selectedHost = h.id; renderArpTab(); },
+            html: `
+              <div class="flex items-center justify-between gap-2 pb-1 border-b border-white/20">
+                <span class="font-bold text-xs text-white">${h.name} ${isSel ? '(Selected)' : ''}</span>
+                <span class="text-xs px-1 rounded bg-black/30 font-mono">P${h.port}</span>
+              </div>
+              <div class="text-xs font-mono text-white/90 pt-1 space-y-0.5">
+                <div>${h.ip}</div>
+                <div class="text-sky-200">${h.mac}</div>
+                <div class="flex items-center justify-between pt-0.5 text-emerald-200">
+                  <span>Cache: ${cnt}</span>
+                  <span>Inbox: ${h.inbox.length}</span>
+                </div>
+              </div>`
+          };
+        })
+      ];
+      const links = [
+        { from: 'A', to: 'SW', solid: true },
+        { from: 'B', to: 'SW', solid: true },
+        { from: 'C', to: 'SW', solid: true }
+      ];
+      renderStage(nodes, links);
+
+      // Controls Panel
+      const srcHost = arpState.hosts[arpState.selectedHost];
+      document.getElementById('controls-panel').innerHTML = `
+        <div class="flex items-center justify-between border-b border-[var(--card-border,#334155)] pb-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-sky-400">ARP Host Actions</h3>
+          <span class="text-xs text-[var(--muted-foreground,#94a3b8)]">Click any host on map or select below</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div>
+            <label class="block text-[var(--muted-foreground,#94a3b8)] mb-1">Source Host</label>
+            <select id="arp-src-sel" onchange="arpState.selectedHost=this.value; renderArpTab();" class="w-full bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2 py-1.5 font-mono text-xs">
+              <option value="A" ${arpState.selectedHost==='A'?'selected':''}>Host A (192.168.1.10)</option>
+              <option value="B" ${arpState.selectedHost==='B'?'selected':''}>Host B (192.168.1.20)</option>
+              <option value="C" ${arpState.selectedHost==='C'?'selected':''}>Host C (192.168.1.30)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[var(--muted-foreground,#94a3b8)] mb-1">Target IP Address</label>
+            <select id="arp-dst-sel" onchange="arpState.targetIp=this.value" class="w-full bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2 py-1.5 font-mono text-xs">
+              <option value="192.168.1.10" ${arpState.targetIp==='192.168.1.10'?'selected':''}>192.168.1.10 (Host A)</option>
+              <option value="192.168.1.20" ${arpState.targetIp==='192.168.1.20'?'selected':''}>192.168.1.20 (Host B)</option>
+              <option value="192.168.1.30" ${arpState.targetIp==='192.168.1.30'?'selected':''}>192.168.1.30 (Host C)</option>
+              <option value="192.168.1.99" ${arpState.targetIp==='192.168.1.99'?'selected':''}>192.168.1.99 (Unreachable)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button onclick="runArpResolve()" class="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-semibold transition-colors">
+            ARP Resolve (arp &lt;ip&gt;)
+          </button>
+          <button onclick="runArpGratuitous()" class="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition-colors">
+            Gratuitous ARP
+          </button>
+        </div>
+
+        <div class="flex gap-2 text-xs">
+          <input id="arp-msg-input" type="text" value="${escapeHtml(arpState.msgText)}" oninput="arpState.msgText=this.value" placeholder="IPv4 payload message..." class="flex-1 bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2.5 py-1.5 font-mono text-xs" />
+          <button onclick="runArpSendData()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shrink-0">
+            Send IPv4 Data
+          </button>
+        </div>
+
+        <div class="pt-1 border-t border-[var(--card-border,#334155)] flex flex-wrap gap-1.5 text-xs">
+          <button onclick="runArpConflict()" class="px-2.5 py-1.5 rounded-lg bg-red-600/80 hover:bg-red-500 text-white font-medium">
+            ⚠ Inject Rogue IP Conflict (.20)
+          </button>
+          <button onclick="arpFastForward()" class="px-2.5 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-white font-medium">
+            ⏩ Age Cache (+15s)
+          </button>
+          <button onclick="arpFlushAll()" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium">
+            Clear Caches
+          </button>
+        </div>
+
+        <!-- Static Entry Adder (arp -s) -->
+        <div class="pt-2 border-t border-[var(--card-border,#334155)] space-y-1.5 text-xs">
+          <div class="text-[var(--muted-foreground,#94a3b8)] font-semibold">Static Entry (arp -s &lt;ip&gt; &lt;mac&gt; on Host ${srcHost.id}):</div>
+          <div class="flex gap-1.5">
+            <input id="arp-static-ip" type="text" value="192.168.1.254" class="w-1/2 bg-black/30 border border-[var(--card-border,#334155)] rounded px-2 py-1 font-mono text-xs" />
+            <input id="arp-static-mac" type="text" value="02:00:c0:a8:01:fe" class="w-1/2 bg-black/30 border border-[var(--card-border,#334155)] rounded px-2 py-1 font-mono text-xs" />
+            <button onclick="arpAddStatic()" class="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white font-semibold shrink-0">Add</button>
+          </div>
+        </div>
+      `;
+
+      // Tables Panel
+      const cacheEntries = Object.entries(srcHost.cache);
+      const swEntries = Object.entries(arpState.switchMacTable);
+      document.getElementById('tables-panel').innerHTML = `
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs border-b border-[var(--card-border,#334155)] pb-1.5">
+            <span class="font-bold">Host ${srcHost.id} ARP Cache (arp -a)</span>
+            <span class="font-mono text-sky-400">${srcHost.ip}</span>
+          </div>
+          <div class="bg-black/30 rounded-lg border border-[var(--card-border,#334155)] p-2 max-h-36 overflow-y-auto custom-scroll text-xs font-mono">
+            ${cacheEntries.length === 0
+              ? '<div class="text-[var(--muted-foreground,#94a3b8)] italic">(ARP cache is empty)</div>'
+              : cacheEntries.map(([ip, e]) => `
+                <div class="flex items-center justify-between py-1 border-b border-white/5 last:border-0">
+                  <span>${ip} &rarr; <span class="text-emerald-300">${e.mac}</span></span>
+                  <span class="flex items-center gap-2">
+                    <span class="px-1.5 rounded ${e.type==='static'?'bg-purple-500/20 text-purple-300':'bg-sky-500/20 text-sky-300'}">${e.type==='static'?'Static':e.ttl+'s'}</span>
+                    <button onclick="arpDeleteEntry('${srcHost.id}','${ip}')" class="text-red-400 hover:text-red-300" title="arp -d">&times;</button>
+                  </span>
+                </div>`).join('')
+            }
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs border-b border-[var(--card-border,#334155)] pb-1.5">
+            <span class="font-bold">Switch MAC Address Table (IEEE 802.1D)</span>
+            <button onclick="arpState.switchMacTable={}; renderArpTab(); addLog('[Switch] MAC table flushed.','sys')" class="text-xs text-amber-400 hover:underline">Flush Table</button>
+          </div>
+          <div class="bg-black/30 rounded-lg border border-[var(--card-border,#334155)] p-2 text-xs font-mono">
+            ${swEntries.length === 0
+              ? '<div class="text-[var(--muted-foreground,#94a3b8)] italic">(Switch MAC table empty — will flood unknown unicast)</div>'
+              : swEntries.map(([mac, port]) => `
+                <div class="flex items-center justify-between py-0.5">
+                  <span class="text-sky-300">${mac}</span>
+                  <span class="text-emerald-300">Port ${port}</span>
+                </div>`).join('')
+            }
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <div class="text-xs font-bold border-b border-[var(--card-border,#334155)] pb-1">Host ${srcHost.id} Received IPv4 Inbox</div>
+          <div class="bg-black/30 rounded-lg border border-[var(--card-border,#334155)] p-2 max-h-24 overflow-y-auto custom-scroll text-xs font-mono">
+            ${srcHost.inbox.length === 0
+              ? '<div class="text-[var(--muted-foreground,#94a3b8)] italic">(No IPv4 messages received yet)</div>'
+              : srcHost.inbox.map(m => `<div><span class="text-emerald-300">From ${m.from}:</span> "${escapeHtml(m.text)}"</div>`).join('')
+            }
+          </div>
+        </div>
+      `;
+    }
+
+    function learnSwitchMac(mac, port) {
+      if (arpState.switchMacTable[mac] !== port) {
+        arpState.switchMacTable[mac] = port;
+        addLog(`[Switch] Learned ${mac} on Port ${port}`, 'sys');
+      }
+    }
+
+    async function runArpResolve(silentIfHit = false) {
+      if (animBusy) return null;
+      animBusy = true;
+      hideBanner();
+      const src = arpState.hosts[arpState.selectedHost];
+      const targetIp = arpState.targetIp;
+
+      if (targetIp === src.ip) {
+        setStatus('Local Interface Match', 'emerald');
+        showNodeToast(src.id, `Own IP -> ${src.mac}`, 'emerald');
+        addLog(`[Host ${src.id}] Target ${targetIp} is local interface (${src.mac}).`, 'rx');
+        renderWirePacket('0 bytes (Local Interface)', []);
+        animBusy = false;
+        return src.mac;
+      }
+
+      const cached = arpLookup(src.id, targetIp);
+      if (cached) {
+        setStatus('ARP Cache HIT (0 Wire Packets)', 'emerald');
+        flashNode(src.id);
+        showNodeToast(src.id, `Cache HIT: ${cached}`, 'emerald');
+        addLog(`[Host ${src.id}] ARP Cache HIT: ${targetIp} is at ${cached} (No packets transmitted)`, 'rx');
+        if (!silentIfHit) renderWirePacket('0 bytes on wire (Cache HIT)', []);
+        animBusy = false;
+        return cached;
+      }
+
+      // Cache MISS -> Broadcast
+      setStatus(`Cache MISS -> Broadcasting for ${targetIp}`, 'amber');
+      addLog(`[Host ${src.id}] ARP Cache MISS for ${targetIp}: Broadcasting ARP Request...`, 'tx');
+      const reqSegs = buildArpWireSegments('ff:ff:ff:ff:ff:ff', src.mac, 1, src.mac, src.ip, '00:00:00:00:00:00', targetIp);
+      renderWirePacket('42 Bytes (Ethernet 14B + ARP Request 28B)', reqSegs);
+
+      const targetHost = Object.values(arpState.hosts).find(h => h.ip === targetIp);
+      const maxAttempts = targetHost ? 1 : 3;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (attempt > 1) {
+          addLog(`[Host ${src.id}] No ARP reply for ${targetIp} (Attempt ${attempt - 1}/3 timed out)`, 'warn');
+        }
+        await animatePacket(src.id, 'SW', `ARP REQ (Try ${attempt})`, '#facc15', 550);
+        learnSwitchMac(src.mac, src.port);
+
+        // Switch floods to all other ports
+        const others = Object.values(arpState.hosts).filter(h => h.id !== src.id);
+        showNodeToast('SW', 'Flooding Broadcast!', 'amber');
+        await Promise.all(others.map(h => animatePacket('SW', h.id, `Who has ${targetIp}?`, '#facc15', 550)));
+
+        others.forEach(h => {
+          if (h.ip === targetIp) {
+            // Passive learning (RFC 826)
+            arpLearn(h.id, src.ip, src.mac, 'dynamic');
+            showNodeToast(h.id, 'Learned Asker + Replying!', 'emerald');
+          } else {
+            if (h.cache[src.ip]) {
+              arpLearn(h.id, src.ip, src.mac, 'dynamic');
+              showNodeToast(h.id, 'Refreshed Asker', 'slate');
+            } else {
+              showNodeToast(h.id, 'Not my IP -> Ignored', 'slate');
+              addLog(`[Host ${h.id}] Target ${targetIp} != ${h.ip} -> Frame ignored.`, 'info');
+            }
+          }
+        });
+
+        if (targetHost) {
+          await sleep(250);
+          // Unicast ARP Reply
+          setStatus('Sending Unicast ARP Reply', 'sky');
+          const repSegs = buildArpWireSegments(src.mac, targetHost.mac, 2, targetHost.mac, targetHost.ip, src.mac, src.ip);
+          renderWirePacket('42 Bytes (Ethernet 14B + ARP Reply 28B)', repSegs);
+          addLog(`[Host ${targetHost.id}] -> ARP REPLY (unicast): ${targetHost.ip} is at ${targetHost.mac}`, 'tx');
+
+          await animatePacket(targetHost.id, 'SW', `ARP REPLY: ${targetHost.mac}`, '#4ade80', 550);
+          learnSwitchMac(targetHost.mac, targetHost.port);
+          showNodeToast('SW', `Unicast -> Port ${src.port} only`, 'sky');
+          await animatePacket('SW', src.id, `${targetHost.ip} is at ${targetHost.mac}`, '#4ade80', 550);
+
+          arpLearn(src.id, targetHost.ip, targetHost.mac, 'dynamic');
+          setStatus(`Resolved ${targetIp} -> ${targetHost.mac}`, 'emerald');
+          renderArpTab();
+          animBusy = false;
+          return targetHost.mac;
+        }
+
+        await sleep(350);
+      }
+
+      setStatus(`UNREACHABLE: ${targetIp} (3 retries failed)`, 'red');
+      showNodeToast(src.id, 'Host Unreachable!', 'red');
+      addLog(`[Host ${src.id}] Destination ${targetIp} is UNREACHABLE after 3 ARP retries.`, 'err');
+      renderArpTab();
+      animBusy = false;
+      return null;
+    }
+
+    async function runArpSendData() {
+      if (animBusy) return;
+      const src = arpState.hosts[arpState.selectedHost];
+      const targetIp = arpState.targetIp;
+      const msg = arpState.msgText.trim() || 'Ping!';
+      let mac = arpLookup(src.id, targetIp);
+
+      if (!mac) {
+        addLog(`[Host ${src.id}] IPv4 packet to ${targetIp} queued — MAC unknown, running ARP first...`, 'warn');
+        mac = await runArpResolve(true);
+        if (!mac) {
+          addLog(`[Host ${src.id}] Transmission ABORTED: cannot frame IPv4 packet without MAC.`, 'err');
+          return;
+        }
+        await sleep(250);
+      }
+
+      animBusy = true;
+      setStatus(`Sending IPv4 Data (0x0800) to ${targetIp}`, 'emerald');
+      const segs = buildIpv4WireSegments(mac, src.mac, src.ip, targetIp, msg);
+      renderWirePacket(`${14 + msg.length + 24} Bytes (Ethernet 0x0800 IPv4 Data)`, segs);
+
+      const targetHost = Object.values(arpState.hosts).find(h => h.ip === targetIp);
+      if (!targetHost) {
+        await animatePacket(src.id, 'SW', `IPv4 Data -> ${mac}`, '#38bdf8', 500);
+        showNodeToast('SW', 'Static MAC not connected', 'amber');
+        addLog(`[Host ${src.id}] Sent IPv4 frame to static MAC ${mac}, no host on LAN.`, 'warn');
+        animBusy = false;
+        return;
+      }
+
+      if (targetHost.id !== src.id) {
+        await animatePacket(src.id, 'SW', `IPv4: "${msg}"`, '#38bdf8', 500);
+        learnSwitchMac(src.mac, src.port);
+        const outPort = arpState.switchMacTable[mac];
+        if (outPort) showNodeToast('SW', `Unicast -> Port ${outPort}`, 'sky');
+        await animatePacket('SW', targetHost.id, `IPv4: "${msg}"`, '#38bdf8', 500);
+      }
+
+      targetHost.inbox.push({ from: src.ip, text: msg });
+      showNodeToast(targetHost.id, `Received: "${msg}"`, 'emerald');
+      addLog(`[Host ${targetHost.id}] <- IPv4 Data from ${src.ip}: "${msg}"`, 'rx');
+      setStatus('IPv4 Data Delivered', 'emerald');
+      renderArpTab();
+      animBusy = false;
+    }
+
+    async function runArpGratuitous() {
+      if (animBusy) return;
+      animBusy = true;
+      hideBanner();
+      const src = arpState.hosts[arpState.selectedHost];
+      setStatus(`Gratuitous ARP from Host ${src.id}`, 'purple');
+      const segs = buildArpWireSegments('ff:ff:ff:ff:ff:ff', src.mac, 1, src.mac, src.ip, '00:00:00:00:00:00', src.ip);
+      renderWirePacket('42 Bytes (Gratuitous ARP: SPA == TPA)', segs);
+      addLog(`[Host ${src.id}] -> Gratuitous ARP: announcing ${src.ip} is at ${src.mac}`, 'tx');
+
+      await animatePacket(src.id, 'SW', `Gratuitous ARP (${src.ip})`, '#c084fc', 500);
+      learnSwitchMac(src.mac, src.port);
+      const others = Object.values(arpState.hosts).filter(h => h.id !== src.id);
+      await Promise.all(others.map(h => animatePacket('SW', h.id, `GARP ${src.ip}`, '#c084fc', 500)));
+
+      others.forEach(h => {
+        if (h.cache[src.ip]) {
+          arpLearn(h.id, src.ip, src.mac, 'dynamic');
+          showNodeToast(h.id, 'Refreshed Neighbor', 'emerald');
+        } else {
+          showNodeToast(h.id, 'Ignored (Not in cache)', 'slate');
+        }
+      });
+      renderArpTab();
+      animBusy = false;
+    }
+
+    async function runArpConflict() {
+      if (animBusy) return;
+      animBusy = true;
+      const rogueMac = '02:00:de:ad:be:ef';
+      const victimIp = '192.168.1.20';
+      setStatus('CRITICAL: IP Address Conflict!', 'red');
+      const segs = buildArpWireSegments('ff:ff:ff:ff:ff:ff', rogueMac, 1, rogueMac, victimIp, '00:00:00:00:00:00', victimIp);
+      renderWirePacket('42 Bytes (Rogue Gratuitous ARP for 192.168.1.20)', segs);
+      addLog(`[Rogue Host] Joined LAN claiming IP ${victimIp} with MAC ${rogueMac}!`, 'err');
+
+      await animatePacket('A', 'SW', `Rogue GARP (${victimIp})`, '#f87171', 500);
+      await animatePacket('SW', 'B', `SPA=${victimIp} MAC=${rogueMac}`, '#f87171', 550);
+
+      flashNode('B', 'alarm');
+      showNodeToast('B', 'IP CONFLICT DETECTED!', 'red');
+      showBanner(`!! [CRITICAL] Host B detected IP ADDRESS CONFLICT: ${rogueMac} is claiming ${victimIp}!`, 'red');
+      addLog(`[Host B] !! [CRITICAL] IP ADDRESS CONFLICT DETECTED: ${rogueMac} is also claiming our IP ${victimIp}!`, 'err');
+      animBusy = false;
+    }
+
+    function arpAddStatic() {
+      const ip = document.getElementById('arp-static-ip').value.trim();
+      const mac = document.getElementById('arp-static-mac').value.trim();
+      if (!ip || !mac) return;
+      arpLearn(arpState.selectedHost, ip, mac, 'static');
+      renderArpTab();
+    }
+
+    function arpDeleteEntry(hostId, ip) {
+      delete arpState.hosts[hostId].cache[ip];
+      addLog(`[Host ${hostId}] ARP cache: Deleted entry for ${ip}`, 'warn');
+      renderArpTab();
+    }
+
+    function arpFastForward() {
+      let evicted = 0;
+      Object.values(arpState.hosts).forEach(h => {
+        Object.entries(h.cache).forEach(([ip, e]) => {
+          if (e.type !== 'static') {
+            e.ttl -= 15;
+            if (e.ttl <= 0) {
+              delete h.cache[ip];
+              evicted++;
+              addLog(`[Host ${h.id}] ARP cache: Entry for ${ip} expired and was evicted.`, 'warn');
+            }
+          }
+        });
+      });
+      if (evicted === 0) addLog('[ARP Timer] Fast-forwarded +15s on all dynamic ARP caches.', 'sys');
+      renderArpTab();
+    }
+
+    function arpFlushAll() {
+      Object.values(arpState.hosts).forEach(h => { h.cache = {}; h.inbox = []; });
+      arpState.switchMacTable = {};
+      hideBanner();
+      setStatus('All ARP Caches & Switch Table Cleared', 'sky');
+      addLog('[System] Cleared all host ARP caches and switch MAC table.', 'sys');
+      renderArpTab();
+    }
+
+    // =========================================================================
+    // TAB 2: INTERACTIVE DNS SANDBOX (RFC 1035)
+    // =========================================================================
+    const dnsState = {
+      qname: 'portal.cse.myuniv.edu',
+      qtype: 'A',
+      forward: true,
+      serverOnline: true,
+      zone: [
+        { name: 'cse.myuniv.edu', type: 'NS', value: 'dns.cse.myuniv.edu', ttl: 300 },
+        { name: 'cse.myuniv.edu', type: 'MX', value: '10 mail.cse.myuniv.edu', ttl: 300 },
+        { name: 'cse.myuniv.edu', type: 'A', value: '192.168.151.1', ttl: 300 },
+        { name: 'www.cse.myuniv.edu', type: 'A', value: '192.168.151.4', ttl: 300 },
+        { name: 'ftp.cse.myuniv.edu', type: 'A', value: '192.168.151.5', ttl: 300 },
+        { name: 'mail.cse.myuniv.edu', type: 'A', value: '192.168.151.6', ttl: 300 },
+        { name: 'web.cse.myuniv.edu', type: 'CNAME', value: 'www.cse.myuniv.edu', ttl: 300 },
+        { name: 'portal.cse.myuniv.edu', type: 'CNAME', value: 'web.cse.myuniv.edu', ttl: 300 }
+      ],
+      upstreamDb: {
+        'www.google.com|A': { rcode: 0, answers: [{ name: 'www.google.com', type: 'A', value: '142.250.193.196', ttl: 60 }] },
+        'www.google.com|AAAA': { rcode: 0, answers: [{ name: 'www.google.com', type: 'AAAA', value: '2404:6800:4009:826::2004', ttl: 60 }] },
+        'www.wikipedia.org|A': { rcode: 0, answers: [{ name: 'www.wikipedia.org', type: 'A', value: '103.102.166.224', ttl: 45 }] },
+        'example.com|A': { rcode: 0, answers: [{ name: 'example.com', type: 'A', value: '93.184.216.34', ttl: 90 }] },
+        'github.com|A': { rcode: 0, answers: [{ name: 'github.com', type: 'A', value: '20.207.73.82', ttl: 60 }] }
+      },
+      cache: {}, // "name|type" -> { ttl, rcode, answers }
+      lastAnswers: []
+    };
+
+    function encodeDnsNameBytes(name) {
+      const out = [];
+      name.replace(/\.$/, '').split('.').filter(Boolean).forEach(lbl => {
+        out.push(lbl.length.toString(16).padStart(2, '0'));
+        for (let i = 0; i < lbl.length; i++) out.push(lbl.charCodeAt(i).toString(16).padStart(2, '0'));
+      });
+      out.push('00');
+      return out;
+    }
+
+    function buildDnsWireSegments(qid, flagsHex, qname, qtypeStr, ansCount, answerValueHex = null) {
+      const qtypeNum = { A: '01', NS: '02', CNAME: '05', PTR: '0c', MX: '0f', AAAA: '1c' }[qtypeStr] || '01';
+      const segs = [
+        { label: 'Header ID (2B)', value: `0x${qid}`, bytes: [qid.slice(0, 2), qid.slice(2, 4)], colorClass: 'text-sky-300' },
+        { label: 'Flags (2B)', value: `0x${flagsHex}`, bytes: [flagsHex.slice(0, 2), flagsHex.slice(2, 4)], colorClass: 'text-purple-300' },
+        { label: 'Counts QD/AN/NS/AR', value: `QD=1 AN=${ansCount}`, bytes: ['00', '01', '00', ansCount.toString(16).padStart(2, '0'), '00', '00', '00', '00'], colorClass: 'text-slate-300' },
+        { label: 'QNAME Labels', value: qname, bytes: encodeDnsNameBytes(qname), colorClass: 'text-amber-300' },
+        { label: 'QTYPE / QCLASS', value: `${qtypeStr} / IN`, bytes: ['00', qtypeNum, '00', '01'], colorClass: 'text-emerald-300' }
+      ];
+      if (answerValueHex) {
+        segs.push({ label: 'Answer RDATA', value: answerValueHex.label, bytes: answerValueHex.bytes, colorClass: 'text-emerald-300' });
+      }
+      return segs;
+    }
+
+    function getPtrRecordForIp(qname) {
+      if (!qname.endsWith('.in-addr.arpa')) return null;
+      const revParts = qname.replace('.in-addr.arpa', '').split('.');
+      if (revParts.length !== 4) return null;
+      const ip = revParts.reverse().join('.');
+      if (ip === '127.0.0.1') return { name: qname, type: 'PTR', value: 'dns.cse.myuniv.edu', ttl: 300 };
+      const match = dnsState.zone.find(r => r.type === 'A' && r.value === ip);
+      return match ? { name: qname, type: 'PTR', value: match.name, ttl: match.ttl } : null;
+    }
+
+    function renderDnsTab() {
+      document.getElementById('stage-title').textContent = 'Basket 2: Interactive DNS Resolver & Zone Sandbox (RFC 1035)';
+      const nodes = [
+        {
+          id: 'client', x: 16, y: 50, bgClass: 'bg-indigo-700/90', minWidth: '140px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">DNS Client</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">UDP</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1">
+              <div>127.0.0.1</div>
+              <div class="text-sky-200">Timeout: 2.0s / 3x</div>
+            </div>`
+        },
+        {
+          id: 'dns', x: 52, y: 50, bgClass: dnsState.serverOnline ? 'bg-emerald-700/90' : 'bg-red-900/90', minWidth: '165px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">Local DNS Server</span>
+              <span class="text-xs px-1.5 rounded ${dnsState.serverOnline ? 'bg-emerald-400/20 text-emerald-200' : 'bg-red-500/40 text-red-200'} font-mono">${dnsState.serverOnline ? 'ONLINE' : 'OFFLINE'}</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1 space-y-0.5">
+              <div>127.0.0.1:5300</div>
+              <div class="text-emerald-200">Zone: cse.myuniv.edu</div>
+              <div class="text-sky-200">Fwd: ${dnsState.forward ? 'ON (8.8.8.8)' : 'OFF'} | Cache: ${Object.keys(dnsState.cache).length}</div>
+            </div>`
+        },
+        {
+          id: 'upstream', x: 86, y: 50, bgClass: 'bg-slate-700/90', minWidth: '135px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">Upstream DNS</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">Public</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1">
+              <div>8.8.8.8:53</div>
+              <div class="text-slate-300">Internet Root/TLD</div>
+            </div>`
+        }
+      ];
+      const links = [
+        { from: 'client', to: 'dns', solid: true },
+        { from: 'dns', to: 'upstream', solid: false, dashed: '5 4', color: dnsState.forward ? '#64748b' : '#334155' }
+      ];
+      renderStage(nodes, links);
+
+      const quickChips = [
+        { label: 'www (A)', name: 'www.cse.myuniv.edu', type: 'A' },
+        { label: 'portal (CNAME Chain)', name: 'portal.cse.myuniv.edu', type: 'A' },
+        { label: 'MX Record', name: 'cse.myuniv.edu', type: 'MX' },
+        { label: 'PTR (Reverse)', name: '5.151.168.192.in-addr.arpa', type: 'PTR' },
+        { label: 'nothere (NXDOMAIN)', name: 'nothere.cse.myuniv.edu', type: 'A' },
+        { label: 'www.google.com (Ext)', name: 'www.google.com', type: 'A' }
+      ];
+
+      document.getElementById('controls-panel').innerHTML = `
+        <div class="flex items-center justify-between border-b border-[var(--card-border,#334155)] pb-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400">DNS Query Builder</h3>
+          <span class="text-xs text-[var(--muted-foreground,#94a3b8)]">Zone: cse.myuniv.edu</span>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5">
+          ${quickChips.map(c => `
+            <button onclick="dnsState.qname='${c.name}'; dnsState.qtype='${c.type}'; renderDnsTab();" class="px-2 py-1 rounded bg-black/30 hover:bg-sky-600/30 border border-[var(--card-border,#334155)] text-xs font-mono">
+              ${c.label}
+            </button>`).join('')}
+        </div>
+
+        <div class="flex gap-2 text-xs">
+          <input id="dns-qname" type="text" value="${escapeHtml(dnsState.qname)}" oninput="dnsState.qname=this.value" class="flex-1 bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2.5 py-1.5 font-mono text-xs" />
+          <select id="dns-qtype" onchange="dnsState.qtype=this.value" class="bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2 py-1.5 font-mono text-xs">
+            ${['A', 'CNAME', 'MX', 'NS', 'PTR', 'AAAA'].map(t => `<option value="${t}" ${dnsState.qtype===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" ${dnsState.forward?'checked':''} onchange="dnsState.forward=this.checked; renderDnsTab();" class="accent-emerald-500" />
+            <span>--forward (8.8.8.8)</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" ${dnsState.serverOnline?'checked':''} onchange="dnsState.serverOnline=this.checked; renderDnsTab();" class="accent-sky-500" />
+            <span>Server Online</span>
+          </label>
+          <button onclick="runDnsQuery()" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
+            Send DNS Query
+          </button>
+        </div>
+
+        <!-- Add Custom Zone Record -->
+        <div class="pt-2 border-t border-[var(--card-border,#334155)] space-y-1.5 text-xs">
+          <div class="text-[var(--muted-foreground,#94a3b8)] font-semibold">Add Custom Record to zone.txt:</div>
+          <div class="flex gap-1.5">
+            <input id="dns-add-name" type="text" placeholder="host (e.g. lab)" class="w-1/3 bg-black/30 border border-[var(--card-border,#334155)] rounded px-2 py-1 font-mono text-xs" />
+            <select id="dns-add-type" class="bg-black/30 border border-[var(--card-border,#334155)] rounded px-1.5 py-1 font-mono text-xs">
+              <option value="A">A</option>
+              <option value="CNAME">CNAME</option>
+            </select>
+            <input id="dns-add-val" type="text" placeholder="192.168.151.99" class="flex-1 bg-black/30 border border-[var(--card-border,#334155)] rounded px-2 py-1 font-mono text-xs" />
+            <button onclick="dnsAddRecord()" class="px-2.5 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white font-semibold">Add</button>
+          </div>
+        </div>
+      `;
+
+      const cacheKeys = Object.entries(dnsState.cache);
+      document.getElementById('tables-panel').innerHTML = `
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs border-b border-[var(--card-border,#334155)] pb-1">
+            <span class="font-bold">Resolver Cache (Forwarded Queries)</span>
+            <div class="flex gap-2">
+              <button onclick="dnsFastForward()" class="text-amber-400 hover:underline">⏩ +15s</button>
+              <button onclick="dnsState.cache={}; renderDnsTab(); addLog('[DNS] Resolver cache cleared.','sys')" class="text-red-400 hover:underline">Clear</button>
+            </div>
+          </div>
+          <div class="bg-black/30 rounded-lg border border-[var(--card-border,#334155)] p-2 max-h-28 overflow-y-auto custom-scroll text-xs font-mono">
+            ${cacheKeys.length === 0
+              ? '<div class="text-[var(--muted-foreground,#94a3b8)] italic">(Cache empty — external queries hit 8.8.8.8)</div>'
+              : cacheKeys.map(([k, v]) => `
+                <div class="flex items-center justify-between py-0.5">
+                  <span class="truncate">${k.replace('|', ' ')} &rarr; <span class="text-emerald-300">${v.answers[0]?.value || 'Empty'}</span></span>
+                  <span class="px-1.5 rounded bg-sky-500/20 text-sky-300 shrink-0">${v.ttl}s</span>
+                </div>`).join('')
+            }
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs border-b border-[var(--card-border,#334155)] pb-1">
+            <span class="font-bold">Authoritative Zone Records (zone.txt)</span>
+            <span class="font-mono text-emerald-400">${dnsState.zone.length} records</span>
+          </div>
+          <div class="bg-black/30 rounded-lg border border-[var(--card-border,#334155)] p-2 max-h-40 overflow-y-auto custom-scroll text-xs font-mono space-y-0.5">
+            ${dnsState.zone.map((r, idx) => `
+              <div class="flex items-center justify-between gap-2 py-0.5 border-b border-white/5 last:border-0">
+                <span class="truncate"><span class="text-sky-300">${r.name}</span> <span class="text-amber-300">${r.type}</span> ${r.value}</span>
+                <button onclick="dnsState.zone.splice(${idx},1); renderDnsTab();" class="text-red-400 hover:text-red-300 shrink-0">&times;</button>
+              </div>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    async function runDnsQuery() {
+      if (animBusy) return;
+      animBusy = true;
+      hideBanner();
+      const qname = dnsState.qname.trim().toLowerCase().replace(/\.$/, '');
+      const qtype = dnsState.qtype;
+      const qid = Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0');
+
+      setStatus(`Querying ${qname} (${qtype})`, 'sky');
+      renderWirePacket(`DNS Query (ID 0x${qid})`, buildDnsWireSegments(qid, '0100', qname, qtype, 0));
+      addLog(`[DNS Client] Query id=0x${qid} -> ${qname} ${qtype}`, 'tx');
+
+      if (!dnsState.serverOnline) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          await animatePacket('client', 'dns', `UDP Query Try ${attempt}/3`, '#facc15', 450);
+          showNodeToast('dns', 'No Listener!', 'red');
+          addLog(`[DNS Client] ;; no reply within 2s (attempt ${attempt}/3)`, 'warn');
+          await sleep(250);
+        }
+        setStatus('Timed Out (Server Offline)', 'red');
+        addLog('[DNS Client] ;; connection timed out, no server could be reached', 'err');
+        animBusy = false;
+        return;
+      }
+
+      await animatePacket('client', 'dns', `Q: ${qname} (${qtype})`, '#38bdf8', 550);
+
+      // Check authoritative zone
+      const ptrRec = qtype === 'PTR' ? getPtrRecordForIp(qname) : null;
+      const inZone = qname === 'cse.myuniv.edu' || qname.endsWith('.cse.myuniv.edu') || ptrRec !== null;
+
+      if (inZone) {
+        let answers = [];
+        let cur = qname;
+        if (ptrRec) {
+          answers.push(ptrRec);
+        } else {
+          for (let hop = 0; hop < 8; hop++) {
+            const direct = dnsState.zone.filter(r => r.name === cur && r.type === qtype);
+            if (direct.length > 0) {
+              answers.push(...direct);
+              break;
+            }
+            const cname = dnsState.zone.find(r => r.name === cur && r.type === 'CNAME');
+            if (cname && qtype !== 'CNAME') {
+              answers.push(cname);
+              addLog(`[DNS Server] ${cur} is CNAME -> ${cname.value}, following chain...`, 'info');
+              showNodeToast('dns', `CNAME -> ${cname.value}`, 'amber');
+              await sleep(450);
+              cur = cname.value;
+              continue;
+            }
+            break;
+          }
+        }
+
+        const nameExists = dnsState.zone.some(r => r.name === cur) || ptrRec !== null;
+        const rcode = answers.length > 0 ? 0 : (nameExists ? 0 : 3);
+        const rcodeName = rcode === 0 ? 'NOERROR' : 'NXDOMAIN';
+        const flagsHex = rcode === 0 ? '8500' : '8503';
+        const firstA = answers.find(a => a.type === 'A');
+        const ansHex = firstA ? { label: firstA.value, bytes: ipToHexBytes(firstA.value) } : null;
+
+        renderWirePacket(`DNS Authoritative Reply (${rcodeName}, AA=1)`, buildDnsWireSegments(qid, flagsHex, qname, qtype, answers.length, ansHex));
+        showNodeToast('dns', `${rcodeName} (AA=1)`, rcode === 0 ? 'emerald' : 'amber');
+        await animatePacket('dns', 'client', `${rcodeName}: ${answers.map(a => a.value).join(', ') || '0 records'}`, rcode === 0 ? '#4ade80' : '#facc15', 550);
+        setStatus(`Authoritative ${rcodeName} (${answers.length} ans)`, rcode === 0 ? 'emerald' : 'amber');
+        addLog(`[DNS Server] Reply id=0x${qid} ${rcodeName} [qr aa rd] -> ${answers.map(a => `${a.type} ${a.value}`).join(', ') || 'no records'}`, rcode === 0 ? 'rx' : 'warn');
+        animBusy = false;
+        return;
+      }
+
+      // External query
+      if (!dnsState.forward) {
+        renderWirePacket('DNS Reply: REFUSED (rcode 5)', buildDnsWireSegments(qid, '8105', qname, qtype, 0));
+        showNodeToast('dns', 'REFUSED (--forward off)', 'red');
+        await animatePacket('dns', 'client', 'REFUSED (rcode 5)', '#f87171', 550);
+        setStatus('REFUSED (Forwarding Disabled)', 'red');
+        addLog(`[DNS Server] Query outside zone & --forward off -> REFUSED (rcode 5)`, 'err');
+        animBusy = false;
+        return;
+      }
+
+      // Forwarding enabled: Check cache
+      const cacheKey = `${qname}|${qtype}`;
+      const hit = dnsState.cache[cacheKey];
+      if (hit && hit.ttl > 0) {
+        showNodeToast('dns', `Cache HIT (${hit.ttl}s left)`, 'emerald');
+        addLog(`[DNS Server] Cache HIT for ${qname} ${qtype} (${hit.ttl}s TTL left) — no upstream query!`, 'rx');
+        const firstA = hit.answers.find(a => a.type === 'A');
+        const ansHex = firstA ? { label: firstA.value, bytes: ipToHexBytes(firstA.value) } : null;
+        renderWirePacket('DNS Cached Reply (AA=0, RA=1)', buildDnsWireSegments(qid, '8180', qname, qtype, hit.answers.length, ansHex));
+        await animatePacket('dns', 'client', `CACHE HIT: ${hit.answers.map(a => a.value).join(', ')}`, '#4ade80', 550);
+        setStatus(`Cache HIT (${hit.ttl}s TTL left)`, 'emerald');
+        animBusy = false;
+        return;
+      }
+
+      // Cache MISS -> Forward to 8.8.8.8
+      showNodeToast('dns', 'Cache MISS -> Asking 8.8.8.8', 'amber');
+      addLog(`[DNS Server] Cache MISS for ${qname} -> forwarding to upstream 8.8.8.8`, 'warn');
+      await animatePacket('dns', 'upstream', `Fwd: ${qname} (${qtype})`, '#facc15', 550);
+
+      const upRes = dnsState.upstreamDb[cacheKey] || { rcode: 0, answers: [{ name: qname, type: qtype, value: qtype === 'A' ? '104.18.32.7' : 'ext.example.net', ttl: 60 }] };
+      await animatePacket('upstream', 'dns', `Ans: ${upRes.answers[0].value}`, '#4ade80', 550);
+
+      dnsState.cache[cacheKey] = { ttl: upRes.answers[0].ttl, rcode: upRes.rcode, answers: upRes.answers };
+      renderDnsTab();
+
+      const ansHex = upRes.answers[0].type === 'A' ? { label: upRes.answers[0].value, bytes: ipToHexBytes(upRes.answers[0].value) } : null;
+      renderWirePacket('DNS Forwarded Reply (AA=0, RA=1)', buildDnsWireSegments(qid, '8180', qname, qtype, upRes.answers.length, ansHex));
+      await animatePacket('dns', 'client', `NOERROR: ${upRes.answers[0].value}`, '#4ade80', 550);
+      setStatus(`Forwarded & Cached (${upRes.answers[0].ttl}s TTL)`, 'emerald');
+      addLog(`[DNS Server] Cached ${qname} for ${upRes.answers[0].ttl}s and replied to client.`, 'rx');
+      animBusy = false;
+    }
+
+    function dnsAddRecord() {
+      let name = document.getElementById('dns-add-name').value.trim().toLowerCase();
+      const type = document.getElementById('dns-add-type').value;
+      let val = document.getElementById('dns-add-val').value.trim();
+      if (!name || !val) return;
+      if (!name.includes('.')) name = `${name}.cse.myuniv.edu`;
+      if (type === 'CNAME' && !val.includes('.')) val = `${val}.cse.myuniv.edu`;
+      dnsState.zone.push({ name, type, value: val, ttl: 300 });
+      addLog(`[DNS Zone] Added record: ${name} ${type} ${val}`, 'sys');
+      renderDnsTab();
+    }
+
+    function dnsFastForward() {
+      let expired = 0;
+      Object.entries(dnsState.cache).forEach(([k, v]) => {
+        v.ttl -= 15;
+        if (v.ttl <= 0) {
+          delete dnsState.cache[k];
+          expired++;
+          addLog(`[DNS Cache] Expired entry ${k.replace('|', ' ')} evicted.`, 'warn');
+        }
+      });
+      if (expired === 0) addLog('[DNS Timer] Fast-forwarded +15s on resolver cache.', 'sys');
+      renderDnsTab();
+    }
+
+    // =========================================================================
+    // TAB 3: INTERACTIVE FTP SANDBOX (RFC 959)
+    // =========================================================================
+    const ftpState = {
+      connected: false,
+      loggedIn: false,
+      user: 'student',
+      passPreset: 'student|cnlab2026',
+      dataMode: 'PASV', // PASV or PORT
+      transferMode: 'I', // I=BINARY, A=ASCII
+      cwd: '/',
+      pasvPort: null,
+      localFiles: [
+        { name: 'report.pdf', size: 32837, md5: pseudoMd5('report.pdf', 32837) },
+        { name: 'notes.txt', size: 1024, md5: pseudoMd5('notes.txt', 1024) }
+      ],
+      selectedLocal: 'report.pdf',
+      serverTree: {
+        '/': [
+          { name: 'welcome.txt', isDir: false, size: 104, md5: pseudoMd5('welcome.txt', 104) },
+          { name: 'pub', isDir: true, size: 0 }
+        ],
+        '/pub': [
+          { name: 'syllabus.pdf', isDir: false, size: 14200, md5: pseudoMd5('syllabus.pdf', 14200) }
+        ]
+      }
+    };
+
+    function buildFtpWireSegments(direction, text) {
+      const bytes = Array.from(new TextEncoder().encode(text + '\r\n')).map(b => b.toString(16).padStart(2, '0'));
+      return [
+        { label: 'TCP Channel', value: direction, bytes: ['08', '49'], colorClass: 'text-purple-300' },
+        { label: 'RFC 959 Command/Reply', value: text, bytes: bytes.slice(0, -2), colorClass: 'text-sky-300' },
+        { label: 'CRLF Terminator', value: '\\r\\n', bytes: ['0d', '0a'], colorClass: 'text-amber-300' }
+      ];
+    }
+
+    function renderFtpTab() {
+      document.getElementById('stage-title').textContent = 'Basket 3: Interactive FTP Dual-Socket Sandbox (RFC 959)';
+      const nodes = [
+        {
+          id: 'client', x: 18, y: 50, bgClass: 'bg-indigo-700/90', minWidth: '150px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">FTP Client</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">${ftpState.dataMode}</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1 space-y-0.5">
+              <div>127.0.0.1</div>
+              <div class="${ftpState.loggedIn ? 'text-emerald-300' : 'text-amber-300'}">${ftpState.connected ? (ftpState.loggedIn ? `Auth: ${ftpState.user}` : 'Connected (No Auth)') : 'Disconnected'}</div>
+            </div>`
+        },
+        {
+          id: 'ctrl', x: 80, y: 26, bgClass: ftpState.connected ? 'bg-amber-700/90' : 'bg-slate-700/90', minWidth: '165px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">Control Socket</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">:2121</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1">
+              <div>State: ${ftpState.connected ? 'ESTABLISHED' : 'LISTENING'}</div>
+              <div class="text-sky-200">CWD: ${ftpState.cwd} | TYPE ${ftpState.transferMode}</div>
+            </div>`
+        },
+        {
+          id: 'data', x: 80, y: 76, bgClass: ftpState.pasvPort ? 'bg-emerald-700/90' : 'bg-slate-800/90', minWidth: '165px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">Data Socket (${ftpState.dataMode})</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">${ftpState.pasvPort ? ':' + ftpState.pasvPort : 'Idle'}</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1">
+              <div>${ftpState.dataMode === 'PASV' ? 'Server listens, Client connects' : 'Client listens, Server connects'}</div>
+            </div>`
+        }
+      ];
+      const links = [
+        { from: 'client', to: 'ctrl', solid: ftpState.connected, active: ftpState.connected, color: '#f59e0b' },
+        { from: 'client', to: 'data', solid: !!ftpState.pasvPort, active: !!ftpState.pasvPort, color: '#10b981', dashed: '4 4' }
+      ];
+      renderStage(nodes, links);
+
+      const serverFiles = ftpState.serverTree[ftpState.cwd] || [];
+      document.getElementById('controls-panel').innerHTML = `
+        <div class="flex items-center justify-between border-b border-[var(--card-border,#334155)] pb-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400">FTP Control &amp; Data Actions</h3>
+          <div class="flex items-center gap-1 text-xs font-mono">
+            <button onclick="ftpState.dataMode='PASV'; renderFtpTab();" class="px-2 py-0.5 rounded ${ftpState.dataMode==='PASV'?'bg-emerald-600 text-white':'bg-black/30 text-slate-400'}">PASV</button>
+            <button onclick="ftpState.dataMode='PORT'; renderFtpTab();" class="px-2 py-0.5 rounded ${ftpState.dataMode==='PORT'?'bg-sky-600 text-white':'bg-black/30 text-slate-400'}">PORT</button>
+          </div>
+        </div>
+
+        <!-- Connection & Auth -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <button onclick="${ftpState.connected ? 'runFtpQuit()' : 'runFtpConnect()'}" class="px-3 py-1.5 rounded-lg font-semibold text-white ${ftpState.connected ? 'bg-red-600 hover:bg-red-500' : 'bg-sky-600 hover:bg-sky-500'}">
+            ${ftpState.connected ? 'Disconnect (QUIT)' : '1. Connect (TCP 2121)'}
+          </button>
+          <div class="flex gap-1">
+            <select onchange="ftpState.passPreset=this.value" class="flex-1 bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-1.5 py-1 text-xs font-mono">
+              <option value="student|cnlab2026" ${ftpState.passPreset==='student|cnlab2026'?'selected':''}>student / cnlab2026</option>
+              <option value="admin|admin123" ${ftpState.passPreset==='admin|admin123'?'selected':''}>admin / admin123</option>
+              <option value="student|wrongpass" ${ftpState.passPreset==='student|wrongpass'?'selected':''}>student / wrongpass</option>
+              <option value="anonymous|guest@" ${ftpState.passPreset==='anonymous|guest@'?'selected':''}>anonymous</option>
+            </select>
+            <button onclick="runFtpLogin()" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">Login</button>
+          </div>
+        </div>
+
+        <!-- Directory & Security -->
+        <div class="grid grid-cols-4 gap-1.5 text-xs">
+          <button onclick="runFtpCmd('PWD')" class="px-2 py-1.5 rounded bg-slate-700 hover:bg-slate-600 font-mono">PWD</button>
+          <button onclick="runFtpList()" class="px-2 py-1.5 rounded bg-slate-700 hover:bg-slate-600 font-mono">LIST</button>
+          <button onclick="runFtpCwd('/pub')" class="px-2 py-1.5 rounded bg-slate-700 hover:bg-slate-600 font-mono">CWD /pub</button>
+          <button onclick="runFtpCwd('..')" class="px-2 py-1.5 rounded bg-slate-700 hover:bg-slate-600 font-mono">CDUP</button>
+        </div>
+
+        <button onclick="runFtpCwd('../../')" class="w-full px-3 py-1.5 rounded-lg bg-red-600/75 hover:bg-red-500 text-white text-xs font-semibold">
+          ⚠ Test Traversal Attack (CWD ../../)
+        </button>
+
+        <!-- Upload STOR -->
+        <div class="pt-2 border-t border-[var(--card-border,#334155)] space-y-1.5 text-xs">
+          <div class="text-[var(--muted-foreground,#94a3b8)] font-semibold">Upload Local File (STOR over Data Socket):</div>
+          <div class="flex gap-1.5">
+            <select onchange="ftpState.selectedLocal=this.value" class="flex-1 bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2 py-1.5 font-mono text-xs">
+              ${ftpState.localFiles.map(f => `<option value="${escapeHtml(f.name)}" ${ftpState.selectedLocal===f.name?'selected':''}>${escapeHtml(f.name)} (${f.size} B)</option>`).join('')}
+            </select>
+            <button onclick="runFtpUpload()" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold">Upload (STOR)</button>
+            <button onclick="ftpCreateLocalFile()" class="px-2 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white" title="Create test file">+ File</button>
+          </div>
+        </div>
+
+        <!-- Raw RFC 959 Command -->
+        <div class="pt-2 border-t border-[var(--card-border,#334155)] flex gap-1.5 text-xs">
+          <input id="ftp-raw-input" type="text" placeholder="Raw command (SYST, FEAT, NOOP, TYPE A)" class="flex-1 bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2.5 py-1.5 font-mono text-xs" />
+          <button onclick="runFtpRaw()" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-semibold">Send</button>
+        </div>
+      `;
+
+      document.getElementById('tables-panel').innerHTML = `
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs border-b border-[var(--card-border,#334155)] pb-1">
+            <span class="font-bold">Server Storage (Jailed Root: ${ftpState.cwd})</span>
+            <span class="font-mono text-amber-300">${serverFiles.length} items</span>
+          </div>
+          <div class="bg-black/30 rounded-lg border border-[var(--card-border,#334155)] p-2 max-h-40 overflow-y-auto custom-scroll text-xs font-mono space-y-1">
+            ${serverFiles.map(f => f.isDir ? `
+              <div class="flex items-center justify-between py-1 border-b border-white/5">
+                <span class="text-sky-300">📁 ${escapeHtml(f.name)}/</span>
+                <button onclick="runFtpCwd('/${escapeHtml(f.name)}')" class="px-2 py-0.5 rounded bg-sky-600/30 text-sky-200 hover:bg-sky-600/50">Open</button>
+              </div>` : `
+              <div class="flex items-center justify-between gap-2 py-1 border-b border-white/5">
+                <span class="truncate">📄 ${escapeHtml(f.name)} <span class="text-slate-400">(${f.size}B)</span></span>
+                <div class="flex gap-1 shrink-0">
+                  <button onclick="runFtpDownload('${escapeHtml(f.name)}')" class="px-1.5 py-0.5 rounded bg-emerald-600/40 text-emerald-200 hover:bg-emerald-600/60">RETR</button>
+                  <button onclick="runFtpSize('${escapeHtml(f.name)}')" class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200">SIZE</button>
+                  <button onclick="runFtpDelete('${escapeHtml(f.name)}')" class="px-1.5 py-0.5 rounded bg-red-600/40 text-red-200">DELE</button>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-xs border-b border-[var(--card-border,#334155)] pb-1">
+            <span class="font-bold">Client Local Files (./downloads &amp; ./uploads)</span>
+            <span class="font-mono text-sky-300">${ftpState.localFiles.length} files</span>
+          </div>
+          <div class="bg-black/30 rounded-lg border border-[var(--card-border,#334155)] p-2 max-h-32 overflow-y-auto custom-scroll text-xs font-mono space-y-0.5">
+            ${ftpState.localFiles.map(f => `
+              <div class="flex items-center justify-between py-0.5">
+                <span>${escapeHtml(f.name)} (${f.size} B)</span>
+                <span class="text-emerald-300 truncate max-w-[130px]" title="MD5: ${f.md5}">MD5:${f.md5.slice(0, 8)}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    async function runFtpConnect() {
+      if (animBusy) return;
+      animBusy = true;
+      hideBanner();
+      setStatus('TCP 3-Way Handshake (Port 2121)', 'sky');
+      addLog('[FTP Client] Initiating TCP 3-way handshake to 127.0.0.1:2121...', 'tx');
+      await animatePacket('client', 'ctrl', 'TCP SYN', '#38bdf8', 400);
+      await animatePacket('ctrl', 'client', 'TCP SYN-ACK', '#38bdf8', 400);
+      await animatePacket('client', 'ctrl', 'TCP ACK', '#38bdf8', 350);
+
+      ftpState.connected = true;
+      renderWirePacket('220 Server Greeting', buildFtpWireSegments('Server -> Client', '220 Welcome to CN Lab Python Socket FTP Server (RFC 959)'));
+      await animatePacket('ctrl', 'client', '220 Ready (RFC 959)', '#4ade80', 450);
+      setStatus('Connected (Await Auth)', 'amber');
+      addLog('[FTP Server] >> 220 Welcome to CN Lab Python Socket FTP Server (RFC 959)', 'rx');
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    async function runFtpQuit() {
+      if (animBusy || !ftpState.connected) return;
+      animBusy = true;
+      renderWirePacket('QUIT Command', buildFtpWireSegments('Client -> Server', 'QUIT'));
+      await animatePacket('client', 'ctrl', 'QUIT', '#facc15', 400);
+      await animatePacket('ctrl', 'client', '221 Goodbye!', '#4ade80', 400);
+      ftpState.connected = false;
+      ftpState.loggedIn = false;
+      ftpState.pasvPort = null;
+      ftpState.cwd = '/';
+      setStatus('Disconnected', 'sky');
+      addLog('[FTP Server] >> 221 Goodbye! Closing control connection.', 'sys');
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    async function runFtpLogin() {
+      if (animBusy) return;
+      if (!ftpState.connected) {
+        addLog('[FTP Client] Error: Connect over TCP 2121 first.', 'err');
+        showNodeToast('client', 'Connect First!', 'red');
+        return;
+      }
+      animBusy = true;
+      const [user, pass] = ftpState.passPreset.split('|');
+      renderWirePacket(`USER ${user}`, buildFtpWireSegments('Client -> Server', `USER ${user}`));
+      await animatePacket('client', 'ctrl', `USER ${user}`, '#38bdf8', 400);
+      await animatePacket('ctrl', 'client', '331 Password req', '#facc15', 400);
+
+      renderWirePacket(`PASS ******`, buildFtpWireSegments('Client -> Server', `PASS ${pass}`));
+      await animatePacket('client', 'ctrl', `PASS ${pass}`, '#38bdf8', 400);
+
+      const valid = (user === 'anonymous') || (user === 'student' && pass === 'cnlab2026') || (user === 'admin' && pass === 'admin123');
+      if (valid) {
+        ftpState.loggedIn = true;
+        ftpState.user = user;
+        renderWirePacket('230 Login OK', buildFtpWireSegments('Server -> Client', `230 User ${user} logged in successfully.`));
+        await animatePacket('ctrl', 'client', `230 Logged in (${user})`, '#4ade80', 450);
+        setStatus(`Authenticated as ${user}`, 'emerald');
+        addLog(`[FTP Server] >> 230 User ${user} logged in successfully.`, 'rx');
+      } else {
+        ftpState.loggedIn = false;
+        renderWirePacket('530 Auth Failed', buildFtpWireSegments('Server -> Client', '530 Authentication failed.'));
+        await animatePacket('ctrl', 'client', '530 Auth Failed!', '#f87171', 450);
+        flashNode('client', 'alarm');
+        setStatus('530 Authentication Failed', 'red');
+        addLog(`[FTP Server] >> 530 Authentication failed for '${user}'.`, 'err');
+      }
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    function requireFtpAuth() {
+      if (!ftpState.connected || !ftpState.loggedIn) {
+        addLog('[FTP Server] >> 530 Please login with USER and PASS first.', 'err');
+        showNodeToast('ctrl', '530 Login Required!', 'red');
+        return false;
+      }
+      return true;
+    }
+
+    async function negotiateDataSocket() {
+      const port = 40000 + Math.floor(Math.random() * 5000);
+      const p1 = Math.floor(port / 256);
+      const p2 = port % 256;
+      ftpState.pasvPort = port;
+      renderFtpTab();
+
+      if (ftpState.dataMode === 'PASV') {
+        renderWirePacket('PASV Negotiation', buildFtpWireSegments('Client -> Server', 'PASV'));
+        await animatePacket('client', 'ctrl', 'PASV', '#38bdf8', 350);
+        renderWirePacket('227 Entering Passive Mode', buildFtpWireSegments('Server -> Client', `227 Entering Passive Mode (127,0,0,1,${p1},${p2})`));
+        await animatePacket('ctrl', 'client', `227 Port ${port}`, '#4ade80', 450);
+        addLog(`[FTP Server] Passive listener opened on 127.0.0.1:${port} ((${p1}*256)+${p2})`, 'sys');
+      } else {
+        renderWirePacket('PORT Active Negotiation', buildFtpWireSegments('Client -> Server', `PORT 127,0,0,1,${p1},${p2}`));
+        await animatePacket('client', 'ctrl', `PORT (${p1},${p2})`, '#38bdf8', 350);
+        await animatePacket('ctrl', 'client', `200 PORT OK (${port})`, '#4ade80', 400);
+        addLog(`[FTP Client] Active listener on 127.0.0.1:${port}; server will connect back.`, 'sys');
+      }
+      return port;
+    }
+
+    async function runFtpList() {
+      if (animBusy || !requireFtpAuth()) return;
+      animBusy = true;
+      setStatus('LIST over Data Socket', 'sky');
+      await negotiateDataSocket();
+      await animatePacket('client', 'ctrl', 'LIST', '#38bdf8', 350);
+      await animatePacket('ctrl', 'client', '150 Directory listing', '#facc15', 350);
+      const count = (ftpState.serverTree[ftpState.cwd] || []).length;
+      await animatePacket('data', 'client', `${count} entries streamed`, '#4ade80', 550);
+      await animatePacket('ctrl', 'client', '226 Directory send OK', '#4ade80', 350);
+      ftpState.pasvPort = null;
+      setStatus('LIST Complete (226)', 'emerald');
+      addLog(`[FTP Server] >> 226 Directory send OK (${count} items in ${ftpState.cwd}).`, 'rx');
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    async function runFtpCwd(dir) {
+      if (animBusy || !requireFtpAuth()) return;
+      animBusy = true;
+      renderWirePacket(`CWD ${dir}`, buildFtpWireSegments('Client -> Server', `CWD ${dir}`));
+      await animatePacket('client', 'ctrl', `CWD ${dir}`, '#38bdf8', 400);
+
+      if (dir.includes('../')) {
+        renderWirePacket('550 Access Denied', buildFtpWireSegments('Server -> Client', `550 Failed to change directory. '${dir}' blocked.`));
+        await animatePacket('ctrl', 'client', '550 Traversal Blocked!', '#f87171', 450);
+        showBanner(`Sandbox Security: Directory traversal '${dir}' blocked with RFC 959 code 550!`, 'amber');
+        setStatus('550 Traversal Blocked', 'red');
+        addLog(`[FTP Server] >> 550 Security Jail blocked '${dir}'. CWD stays '${ftpState.cwd}'.`, 'err');
+      } else if (dir === '..') {
+        ftpState.cwd = '/';
+        await animatePacket('ctrl', 'client', '200 CWD "/"', '#4ade80', 400);
+        setStatus('CWD: /', 'emerald');
+        addLog('[FTP Server] >> 200 Directory changed to "/".', 'rx');
+      } else if (ftpState.serverTree[dir]) {
+        ftpState.cwd = dir;
+        await animatePacket('ctrl', 'client', `250 CWD "${dir}"`, '#4ade80', 400);
+        setStatus(`CWD: ${dir}`, 'emerald');
+        addLog(`[FTP Server] >> 250 Directory changed to "${dir}".`, 'rx');
+      } else {
+        await animatePacket('ctrl', 'client', '550 Not found', '#f87171', 400);
+        addLog(`[FTP Server] >> 550 Directory '${dir}' does not exist.`, 'warn');
+      }
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    async function runFtpUpload() {
+      if (animBusy || !requireFtpAuth()) return;
+      const localFile = ftpState.localFiles.find(f => f.name === ftpState.selectedLocal);
+      if (!localFile) return;
+      animBusy = true;
+      setStatus(`Uploading ${localFile.name} (STOR)`, 'amber');
+      await negotiateDataSocket();
+      await animatePacket('client', 'ctrl', `STOR ${localFile.name}`, '#38bdf8', 350);
+      await animatePacket('ctrl', 'client', '150 Ok to send data', '#facc15', 350);
+
+      renderWirePacket(`Data Stream (${localFile.size}B Binary)`, buildFtpWireSegments('Client -> Data Socket', `[BINARY STREAM: ${localFile.name}, ${localFile.size} bytes]`));
+      await animatePacket('client', 'data', `Streaming ${localFile.size}B + FIN`, '#4ade80', 750);
+
+      const folder = ftpState.serverTree[ftpState.cwd];
+      const existing = folder.find(x => x.name === localFile.name);
+      if (existing) { existing.size = localFile.size; existing.md5 = localFile.md5; }
+      else folder.push({ name: localFile.name, isDir: false, size: localFile.size, md5: localFile.md5 });
+
+      await animatePacket('ctrl', 'client', '226 Transfer complete', '#4ade80', 350);
+      ftpState.pasvPort = null;
+      setStatus(`STOR OK — MD5 Verified`, 'emerald');
+      showBanner(`MD5 Verified: ${localFile.name} (${localFile.size}B) = ${localFile.md5}`, 'emerald');
+      addLog(`[FTP Server] >> 226 Transfer complete (${localFile.size} bytes). MD5=${localFile.md5}`, 'rx');
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    async function runFtpDownload(filename) {
+      if (animBusy || !requireFtpAuth()) return;
+      const srvFile = (ftpState.serverTree[ftpState.cwd] || []).find(f => f.name === filename);
+      if (!srvFile) return;
+      animBusy = true;
+      setStatus(`Downloading ${filename} (RETR)`, 'amber');
+      await negotiateDataSocket();
+      await animatePacket('client', 'ctrl', `RETR ${filename}`, '#38bdf8', 350);
+      await animatePacket('ctrl', 'client', `150 Opening BINARY (${srvFile.size}B)`, '#facc15', 350);
+      await animatePacket('data', 'client', `Sending ${srvFile.size}B + FIN`, '#4ade80', 750);
+
+      const ex = ftpState.localFiles.find(f => f.name === filename);
+      if (ex) { ex.size = srvFile.size; ex.md5 = srvFile.md5; }
+      else ftpState.localFiles.push({ name: filename, size: srvFile.size, md5: srvFile.md5 });
+
+      await animatePacket('ctrl', 'client', '226 Transfer complete', '#4ade80', 350);
+      ftpState.pasvPort = null;
+      setStatus(`RETR OK — MD5 Verified`, 'emerald');
+      showBanner(`Downloaded ${filename} (${srvFile.size}B) — MD5 match: ${srvFile.md5}`, 'emerald');
+      addLog(`[FTP Client] Downloaded '${filename}' (${srvFile.size} bytes). MD5 verified!`, 'rx');
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    async function runFtpSize(filename) {
+      if (animBusy || !requireFtpAuth()) return;
+      const srvFile = (ftpState.serverTree[ftpState.cwd] || []).find(f => f.name === filename);
+      if (!srvFile) return;
+      animBusy = true;
+      renderWirePacket(`SIZE ${filename}`, buildFtpWireSegments('Client -> Server', `SIZE ${filename}`));
+      await animatePacket('client', 'ctrl', `SIZE ${filename}`, '#38bdf8', 350);
+      renderWirePacket(`213 ${srvFile.size}`, buildFtpWireSegments('Server -> Client', `213 ${srvFile.size}`));
+      await animatePacket('ctrl', 'client', `213 ${srvFile.size} bytes`, '#4ade80', 350);
+      addLog(`[FTP Server] >> 213 ${srvFile.size}`, 'rx');
+      animBusy = false;
+    }
+
+    async function runFtpDelete(filename) {
+      if (animBusy || !requireFtpAuth()) return;
+      animBusy = true;
+      await animatePacket('client', 'ctrl', `DELE ${filename}`, '#38bdf8', 350);
+      ftpState.serverTree[ftpState.cwd] = ftpState.serverTree[ftpState.cwd].filter(f => f.name !== filename);
+      await animatePacket('ctrl', 'client', `250 Deleted`, '#4ade80', 350);
+      addLog(`[FTP Server] >> 250 File '${filename}' deleted successfully.`, 'warn');
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    async function runFtpCmd(cmd) {
+      if (animBusy || !requireFtpAuth()) return;
+      animBusy = true;
+      renderWirePacket(cmd, buildFtpWireSegments('Client -> Server', cmd));
+      await animatePacket('client', 'ctrl', cmd, '#38bdf8', 350);
+      let rep = '200 Command okay.';
+      if (cmd === 'PWD') rep = `257 "${ftpState.cwd}" is the current directory.`;
+      else if (cmd === 'SYST') rep = '215 UNIX Type: L8 (Python Socket Lab FTP)';
+      else if (cmd === 'FEAT') rep = '211 Features: PASV, PORT, RETR, STOR, LIST, SIZE';
+      else if (cmd === 'NOOP') rep = '200 NOOP OK.';
+      else if (cmd === 'TYPE A') { ftpState.transferMode = 'A'; rep = '200 Switching to ASCII mode.'; }
+      else if (cmd === 'TYPE I') { ftpState.transferMode = 'I'; rep = '200 Switching to Binary mode.'; }
+      else rep = `502 Command '${cmd}' not implemented.`;
+      renderWirePacket(rep, buildFtpWireSegments('Server -> Client', rep));
+      await animatePacket('ctrl', 'client', rep.slice(0, 22), rep.startsWith('5') ? '#f87171' : '#4ade80', 400);
+      addLog(`[FTP Server] >> ${rep}`, rep.startsWith('5') ? 'err' : 'rx');
+      renderFtpTab();
+      animBusy = false;
+    }
+
+    function runFtpRaw() {
+      const inp = document.getElementById('ftp-raw-input');
+      const val = inp.value.trim().toUpperCase();
+      if (!val) return;
+      inp.value = '';
+      runFtpCmd(val);
+    }
+
+    function ftpCreateLocalFile() {
+      const n = `lab_file_${ftpState.localFiles.length + 1}.bin`;
+      const s = 4096 + Math.floor(Math.random() * 16384);
+      ftpState.localFiles.push({ name: n, size: s, md5: pseudoMd5(n, s) });
+      ftpState.selectedLocal = n;
+      addLog(`[Client FS] Created local file '${n}' (${s} bytes).`, 'sys');
+      renderFtpTab();
+    }
+
+    // =========================================================================
+    // TAB 4: END-TO-END GROUP STORY (DNS -> ARP -> FTP)
+    // =========================================================================
+    const storyState = {
+      hostname: 'ftp.cse.myuniv.edu',
+      dnsResolvedIp: null,
+      arpResolvedMac: null,
+      ftpDone: false
+    };
+
+    function renderStoryTab() {
+      document.getElementById('stage-title').textContent = '★ End-to-End Group Story: DNS → ARP → FTP Pipeline';
+      const nodes = [
+        {
+          id: 'client', x: 15, y: 50, bgClass: 'bg-indigo-700/90', minWidth: '148px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">Client Host</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">.1.100</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1 space-y-0.5">
+              <div class="${storyState.dnsResolvedIp ? 'text-emerald-300' : 'text-slate-300'}">DNS: ${storyState.dnsResolvedIp || 'Unknown'}</div>
+              <div class="${storyState.arpResolvedMac ? 'text-emerald-300' : 'text-slate-300'}">MAC: ${storyState.arpResolvedMac || 'Unknown'}</div>
+            </div>`
+        },
+        {
+          id: 'dns', x: 50, y: 18, bgClass: 'bg-emerald-700/90', minWidth: '148px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">1. DNS Server</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">UDP 53</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1">
+              <div>192.168.151.3</div>
+              <div class="text-emerald-200">zone.txt</div>
+            </div>`
+        },
+        {
+          id: 'sw', x: 50, y: 65, bgClass: 'bg-slate-800/95', minWidth: '148px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/15">
+              <span class="font-bold text-xs text-white">2. L2 Switch</span>
+              <span class="text-xs px-1 rounded bg-black/40 font-mono">802.1D</span>
+            </div>
+            <div class="text-xs font-mono text-slate-300 pt-1">Broadcast Domain</div>`
+        },
+        {
+          id: 'ftp', x: 85, y: 50, bgClass: 'bg-amber-700/90', minWidth: '150px',
+          html: `
+            <div class="flex items-center justify-between pb-1 border-b border-white/20">
+              <span class="font-bold text-xs text-white">3. FTP Server</span>
+              <span class="text-xs px-1 rounded bg-black/30 font-mono">TCP 2121</span>
+            </div>
+            <div class="text-xs font-mono text-white/90 pt-1">
+              <div>192.168.151.5</div>
+              <div class="text-sky-200">02:00:c0:a8:97:05</div>
+            </div>`
+        }
+      ];
+      const links = [
+        { from: 'client', to: 'dns', solid: true, active: !!storyState.dnsResolvedIp, color: '#10b981' },
+        { from: 'client', to: 'sw', solid: true, active: !!storyState.arpResolvedMac, color: '#38bdf8' },
+        { from: 'sw', to: 'ftp', solid: true, active: storyState.ftpDone, color: '#f59e0b' }
+      ];
+      renderStage(nodes, links);
+
+      document.getElementById('controls-panel').innerHTML = `
+        <div class="flex items-center justify-between border-b border-[var(--card-border,#334155)] pb-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-sky-400">Mission Control: Fetch File by Hostname</h3>
+          <button onclick="storyReset()" class="text-xs text-red-400 hover:underline">Clear All Caches</button>
+        </div>
+
+        <div class="text-xs space-y-1">
+          <label class="block text-[var(--muted-foreground,#94a3b8)]">Target Hostname:</label>
+          <select onchange="storyState.hostname=this.value; storyReset();" class="w-full bg-black/30 border border-[var(--card-border,#334155)] rounded-lg px-2.5 py-1.5 font-mono text-xs">
+            <option value="ftp.cse.myuniv.edu" ${storyState.hostname==='ftp.cse.myuniv.edu'?'selected':''}>ftp.cse.myuniv.edu (Direct A Record)</option>
+            <option value="files.cse.myuniv.edu" ${storyState.hostname==='files.cse.myuniv.edu'?'selected':''}>files.cse.myuniv.edu (CNAME -> ftp)</option>
+          </select>
+        </div>
+
+        <div class="space-y-2 text-xs">
+          <button onclick="runStoryDns()" class="w-full p-2.5 rounded-lg border text-left flex items-center justify-between ${storyState.dnsResolvedIp ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-black/25 border-[var(--card-border,#334155)] hover:bg-slate-800'}">
+            <div>
+              <div class="font-bold">Step 1: Run DNS Lookup (UDP 53)</div>
+              <div class="text-[var(--muted-foreground,#94a3b8)]">Resolve "${storyState.hostname}" &rarr; IPv4 address</div>
+            </div>
+            <span class="font-mono font-bold ${storyState.dnsResolvedIp ? 'text-emerald-300' : 'text-sky-400'}">${storyState.dnsResolvedIp || 'Run ›'}</span>
+          </button>
+
+          <button onclick="runStoryArp()" class="w-full p-2.5 rounded-lg border text-left flex items-center justify-between ${storyState.arpResolvedMac ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-black/25 border-[var(--card-border,#334155)] hover:bg-slate-800'}">
+            <div>
+              <div class="font-bold">Step 2: Run ARP Broadcast (L2 0x0806)</div>
+              <div class="text-[var(--muted-foreground,#94a3b8)]">Resolve IP &rarr; Physical Ethernet MAC</div>
+            </div>
+            <span class="font-mono font-bold ${storyState.arpResolvedMac ? 'text-emerald-300' : 'text-sky-400'}">${storyState.arpResolvedMac ? 'Cached ✓' : 'Run ›'}</span>
+          </button>
+
+          <button onclick="runStoryFtp()" class="w-full p-2.5 rounded-lg border text-left flex items-center justify-between ${storyState.ftpDone ? 'bg-emerald-500/15 border-emerald-500/50' : 'bg-sky-600/25 border-sky-500/60 hover:bg-sky-600/35'}">
+            <div>
+              <div class="font-bold">Step 3: Connect &amp; Transfer File (TCP 2121 + PASV)</div>
+              <div class="text-[var(--muted-foreground,#94a3b8)]">Auto-resolves missing DNS/ARP stages if cold!</div>
+            </div>
+            <span class="font-mono font-bold ${storyState.ftpDone ? 'text-emerald-300' : 'text-white'}">${storyState.ftpDone ? 'Done ✓' : 'Launch ›'}</span>
+          </button>
+        </div>
+      `;
+
+      document.getElementById('tables-panel').innerHTML = `
+        <div class="space-y-2 text-xs">
+          <div class="font-bold border-b border-[var(--card-border,#334155)] pb-1.5">Layer Dependency Checklist</div>
+          <div class="space-y-2 font-mono">
+            <div class="p-2 rounded bg-black/30 border border-[var(--card-border,#334155)]">
+              <div class="text-[var(--muted-foreground,#94a3b8)]">App / Name Layer (DNS):</div>
+              <div class="${storyState.dnsResolvedIp ? 'text-emerald-300' : 'text-amber-300'}">${storyState.dnsResolvedIp ? `${storyState.hostname} = ${storyState.dnsResolvedIp}` : 'Pending — Hostname cannot route on IP network'}</div>
+            </div>
+            <div class="p-2 rounded bg-black/30 border border-[var(--card-border,#334155)]">
+              <div class="text-[var(--muted-foreground,#94a3b8)]">Data Link Layer (ARP):</div>
+              <div class="${storyState.arpResolvedMac ? 'text-emerald-300' : 'text-amber-300'}">${storyState.arpResolvedMac ? `${storyState.dnsResolvedIp} = ${storyState.arpResolvedMac}` : 'Pending — NIC cannot frame Ethernet without MAC'}</div>
+            </div>
+            <div class="p-2 rounded bg-black/30 border border-[var(--card-border,#334155)]">
+              <div class="text-[var(--muted-foreground,#94a3b8)]">Application Transfer (FTP):</div>
+              <div class="${storyState.ftpDone ? 'text-emerald-300' : 'text-slate-300'}">${storyState.ftpDone ? '226 Transfer complete (MD5 Match 100%)' : 'Waiting for TCP 2121 + PASV Data Transfer'}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function runStoryDns(keepLock = false) {
+      if (!keepLock && animBusy) return;
+      animBusy = true;
+      if (storyState.dnsResolvedIp) {
+        addLog(`[Story] DNS Cache HIT: ${storyState.hostname} -> ${storyState.dnsResolvedIp}`, 'rx');
+        renderWirePacket('0 bytes (DNS Cache HIT)', []);
+        if (!keepLock) animBusy = false;
+        return;
+      }
+      setStatus('Step 1: DNS Resolution', 'emerald');
+      const qid = '1a4c';
+      renderWirePacket('DNS Query (UDP 53)', buildDnsWireSegments(qid, '0100', storyState.hostname, 'A', 0));
+      addLog(`[Story Step 1] Querying DNS Server for ${storyState.hostname}...`, 'tx');
+      await animatePacket('client', 'dns', `DNS Q: ${storyState.hostname}`, '#38bdf8', 550);
+
+      storyState.dnsResolvedIp = '192.168.151.5';
+      renderWirePacket('DNS Reply: 192.168.151.5', buildDnsWireSegments(qid, '8500', storyState.hostname, 'A', 1, { label: '192.168.151.5', bytes: ipToHexBytes('192.168.151.5') }));
+      await animatePacket('dns', 'client', 'A: 192.168.151.5', '#4ade80', 550);
+      addLog(`[Story Step 1] DNS Resolved ${storyState.hostname} -> 192.168.151.5`, 'rx');
+      renderStoryTab();
+      if (!keepLock) animBusy = false;
+    }
+
+    async function runStoryArp(keepLock = false) {
+      if (!keepLock && animBusy) return;
+      animBusy = true;
+      if (!storyState.dnsResolvedIp) {
+        addLog('[Story] Cannot run ARP without target IP! Running Step 1 (DNS) automatically first...', 'warn');
+        await runStoryDns(true);
+        await sleep(300);
+      }
+      if (storyState.arpResolvedMac) {
+        addLog(`[Story] ARP Cache HIT: 192.168.151.5 -> ${storyState.arpResolvedMac}`, 'rx');
+        if (!keepLock) animBusy = false;
+        return;
+      }
+      setStatus('Step 2: ARP Broadcast Resolution', 'amber');
+      renderWirePacket('42B ARP Request Broadcast', buildArpWireSegments('ff:ff:ff:ff:ff:ff', '02:00:c0:a8:01:64', 1, '02:00:c0:a8:01:64', '192.168.1.100', '00:00:00:00:00:00', '192.168.151.5'));
+      addLog('[Story Step 2] ARP Cache MISS for 192.168.151.5 -> Broadcasting via Switch...', 'tx');
+      await animatePacket('client', 'sw', 'ARP Broadcast', '#facc15', 450);
+      await animatePacket('sw', 'ftp', 'Who has .151.5?', '#facc15', 450);
+
+      storyState.arpResolvedMac = '02:00:c0:a8:97:05';
+      renderWirePacket('42B ARP Unicast Reply', buildArpWireSegments('02:00:c0:a8:01:64', '02:00:c0:a8:97:05', 2, '02:00:c0:a8:97:05', '192.168.151.5', '02:00:c0:a8:01:64', '192.168.1.100'));
+      await animatePacket('ftp', 'sw', 'Unicast Reply', '#4ade80', 450);
+      await animatePacket('sw', 'client', '.151.5 at 02:00:c0:a8:97:05', '#4ade80', 450);
+      addLog('[Story Step 2] ARP Resolved 192.168.151.5 -> 02:00:c0:a8:97:05', 'rx');
+      renderStoryTab();
+      if (!keepLock) animBusy = false;
+    }
+
+    async function runStoryFtp() {
+      if (animBusy) return;
+      animBusy = true;
+      if (!storyState.dnsResolvedIp) {
+        addLog('[Story] Cold start detected: auto-executing DNS -> ARP -> FTP chain!', 'warn');
+        await runStoryDns(true);
+        await sleep(250);
+      }
+      if (!storyState.arpResolvedMac) {
+        await runStoryArp(true);
+        await sleep(250);
+      }
+      setStatus('Step 3: TCP 2121 & FTP Transfer', 'sky');
+      renderWirePacket('FTP Control + PASV Data', buildFtpWireSegments('Client -> FTP Server', 'PASV -> RETR welcome.txt'));
+      addLog('[Story Step 3] Opening TCP Control Port 2121 to 192.168.151.5...', 'tx');
+      await animatePacket('client', 'sw', 'TCP SYN + Auth', '#38bdf8', 420);
+      await animatePacket('sw', 'ftp', 'USER/PASS + PASV', '#38bdf8', 420);
+      await animatePacket('ftp', 'sw', '227 + 150 + File Data', '#4ade80', 450);
+      await animatePacket('sw', 'client', '226 OK (MD5 Verified)', '#4ade80', 450);
+      storyState.ftpDone = true;
+      setStatus('End-to-End Pipeline Complete!', 'emerald');
+      showBanner('End-to-End Complete: Hostname -> IP (DNS) -> MAC (ARP) -> File Delivered (FTP)!', 'emerald');
+      addLog('[Story Complete] Full stack transfer verified with 0% packet loss.', 'rx');
+      renderStoryTab();
+      animBusy = false;
+    }
+
+    function storyReset() {
+      storyState.dnsResolvedIp = null;
+      storyState.arpResolvedMac = null;
+      storyState.ftpDone = false;
+      hideBanner();
+      setStatus('Caches Cleared — Cold Start', 'sky');
+      renderStoryTab();
+    }
+
+    // =========================================================================
+    // TAB SWITCHER & LIVE 1s TTL TICKER
+    // =========================================================================
+    function switchTab(tab) {
+      if (animBusy) return;
+      activeTab = tab;
+      hideBanner();
+      setStatus('Idle — Ready for Action', 'sky');
+      ['arp', 'dns', 'ftp', 'story'].forEach(t => {
+        const b = document.getElementById(`tab-${t}`);
+        b.className = t === tab
+          ? 'px-3 py-1.5 rounded-md transition-colors bg-sky-600 text-white font-semibold'
+          : 'px-3 py-1.5 rounded-md transition-colors text-[var(--muted-foreground,#94a3b8)] hover:text-white';
+      });
+      if (tab === 'arp') renderArpTab();
+      else if (tab === 'dns') renderDnsTab();
+      else if (tab === 'ftp') renderFtpTab();
+      else renderStoryTab();
+    }
+
+    // Real-time 1-second TTL ticker for ARP and DNS caches
+    setInterval(() => {
+      let arpChanged = false;
+      Object.values(arpState.hosts).forEach(h => {
+        Object.entries(h.cache).forEach(([ip, e]) => {
+          if (e.type !== 'static') {
+            e.ttl -= 1;
+            arpChanged = true;
+            if (e.ttl <= 0) {
+              delete h.cache[ip];
+              addLog(`[Host ${h.id}] ARP cache: Entry for ${ip} expired (TTL=0) and was evicted.`, 'warn');
+            }
+          }
+        });
+      });
+      if (activeTab === 'arp' && arpChanged && !animBusy) renderArpTab();
+
+      let dnsChanged = false;
+      Object.entries(dnsState.cache).forEach(([k, v]) => {
+        v.ttl -= 1;
+        dnsChanged = true;
+        if (v.ttl <= 0) {
+          delete dnsState.cache[k];
+          addLog(`[DNS Cache] TTL expired for ${k.replace('|', ' ')} -> evicted.`, 'warn');
+        }
+      });
+      if (activeTab === 'dns' && dnsChanged && !animBusy) renderDnsTab();
+    }, 1000);
+
+    // Boot
+    switchTab('arp');
+    addLog('Interactive Sandbox ready. Select any protocol tab and trigger actions!', 'sys');
+  </script>
+</body>
+</html>
