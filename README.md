@@ -217,8 +217,6 @@ CN_LAB_PROJECT/
 │   ├── HOW_TO_SHOW_DNS.md       # Multi-terminal lab demonstration guide & viva Q&A
 │   └── README.md                # Module documentation
 │
-├── samim code/                  # Samim Sekh's own ARP version and combined demo notes
-│
 └── ftp/                         # BASKET 3: File Transfer Protocol (RFC 959)
     ├── ftp_server.py            # Multi-threaded RFC 959 server (Dual-socket: Control + PASV/PORT)
     ├── ftp_client.py            # Interactive socket-based FTP client shell with stats
