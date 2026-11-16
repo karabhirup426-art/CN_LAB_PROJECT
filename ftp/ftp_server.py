@@ -504,11 +504,14 @@ class FTPServerSession(threading.Thread):
             self.send_response(550, f"File '{filename}' not found.")
 
 
+DEFAULT_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "storage")
+
+
 class FTPServer:
-    def __init__(self, host="127.0.0.1", port=2121, root_dir="./storage"):
+    def __init__(self, host="127.0.0.1", port=2121, root_dir=None):
         self.host = host
         self.port = port
-        self.root_dir = os.path.abspath(root_dir)
+        self.root_dir = os.path.abspath(root_dir) if root_dir else DEFAULT_ROOT
         os.makedirs(self.root_dir, exist_ok=True)
 
         # Default registered user database
@@ -572,7 +575,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Python Socket-Based FTP Server (RFC 959)")
     parser.add_argument("--host", default="127.0.0.1", help="Host IP to bind to (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=2121, help="Port to listen on (default: 2121)")
-    parser.add_argument("--root", default="./storage", help="Root storage directory (default: ./storage)")
+    parser.add_argument("--root", default=DEFAULT_ROOT, help="Root storage directory (default: ./storage)")
     args = parser.parse_args()
 
     server = FTPServer(host=args.host, port=args.port, root_dir=args.root)
