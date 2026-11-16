@@ -16,7 +16,6 @@
       --code-bg: #090d16;
       --green: #4ade80;
       --red: #f87171;
-      --orange: #fb923c;
     }
     @media (prefers-color-scheme: light) {
       :root {
@@ -37,7 +36,7 @@
       color: var(--text);
       line-height: 1.6;
       padding: 1rem;
-      max-width: 800px;
+      max-width: 840px;
       margin: 0 auto;
       font-size: 16px;
     }
@@ -53,10 +52,7 @@
       margin-bottom: 0.5rem;
       font-weight: 800;
     }
-    .subtitle {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-    }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; }
     .badge {
       display: inline-block;
       padding: 0.25rem 0.6rem;
@@ -72,31 +68,24 @@
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 1.25rem;
+      padding: 1.4rem;
       margin-bottom: 1.5rem;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     h2 {
-      font-size: 1.3rem;
+      font-size: 1.35rem;
       color: var(--accent);
-      margin-bottom: 0.8rem;
+      margin-bottom: 0.9rem;
       border-bottom: 1px solid var(--border);
       padding-bottom: 0.4rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
     }
     h3 {
-      font-size: 1.05rem;
-      margin: 1rem 0 0.4rem;
-      color: var(--text);
+      font-size: 1.1rem;
+      margin: 1.2rem 0 0.5rem;
+      color: var(--accent);
     }
-    p, ul, ol {
-      margin-bottom: 0.8rem;
-    }
-    ul, ol {
-      padding-left: 1.4rem;
-    }
+    p, ul, ol { margin-bottom: 0.8rem; }
+    ul, ol { padding-left: 1.4rem; }
     li { margin-bottom: 0.4rem; }
     strong { color: var(--accent); }
     pre {
@@ -125,7 +114,7 @@
       font-size: 0.88rem;
     }
     th, td {
-      padding: 0.6rem;
+      padding: 0.65rem;
       border: 1px solid var(--border);
       text-align: left;
     }
@@ -137,7 +126,7 @@
     .callout {
       background: var(--accent-subtle);
       border-left: 4px solid var(--accent);
-      padding: 0.9rem;
+      padding: 1rem;
       border-radius: 0 8px 8px 0;
       margin: 1rem 0;
     }
@@ -153,9 +142,7 @@
       color: var(--red);
       margin-bottom: 0.3rem;
     }
-    .viva-a {
-      font-size: 0.92rem;
-    }
+    .viva-a { font-size: 0.92rem; }
     footer {
       text-align: center;
       padding: 2rem 1rem;
@@ -169,13 +156,13 @@
 
   <header>
     <h1>Computer Networks Lab Master Guide</h1>
-    <p class="subtitle">Complete Study & Viva Preparation Guide for ARP, DNS & FTP</p>
+    <p class="subtitle">Complete Unabridged Project & Viva Preparation Guide for ARP, DNS & FTP</p>
     <span class="badge">CSE/PC/B/S/314 &bull; Jadavpur University</span>
   </header>
 
   <section>
-    <h2>1. Project Requirements & Baskets</h2>
-    <p>The lab requirement mandates implementing one protocol from each of the three layer baskets using standard Python sockets:</p>
+    <h2>1. Course Requirements & Basket Breakdown</h2>
+    <p>The lab project requires implementing one protocol from each of the three layer baskets using standard Python sockets (no high-level third-party libraries):</p>
     <table>
       <thead>
         <tr>
@@ -213,11 +200,11 @@
   </section>
 
   <section>
-    <h2>2. Why TCP for FTP (and not UDP)?</h2>
+    <h2>2. Why FTP Uses TCP Sockets (and not UDP)</h2>
     <ul>
       <li><strong>100% Data Integrity:</strong> File transfer cannot tolerate a single dropped, duplicated, or corrupted bit. TCP guarantees delivery through sequence numbers, acknowledgments (ACKs), and automatic retransmissions (ARQ).</li>
-      <li><strong>In-Order Byte Delivery:</strong> TCP guarantees packets arrive in the exact order sent. UDP datagrams may arrive out-of-order or duplicate.</li>
-      <li><strong>Flow and Congestion Control:</strong> TCP uses sliding windows to avoid buffer overflow and adjusts transmission speed to network congestion.</li>
+      <li><strong>In-Order Byte Delivery:</strong> TCP guarantees packets arrive in the exact order sent. UDP datagrams may arrive out-of-order, duplicated, or get dropped silently.</li>
+      <li><strong>Flow and Congestion Control:</strong> TCP uses sliding-window flow control to prevent buffer overflow and adapts transmission rate dynamically based on network congestion.</li>
     </ul>
   </section>
 
@@ -239,46 +226,129 @@
         v                                                          v
     </pre>
     <ul>
-      <li><strong>Control Connection (Port 2121):</strong> Stays open throughout the entire session. Carries small ASCII commands and 3-digit status codes. Never transfers file bytes.</li>
-      <li><strong>Data Connection:</strong> Opened dynamically on-demand exclusively for data-intensive transfers (file upload, file download, directory listing). Closed as soon as transfer finishes (sending TCP FIN).</li>
+      <li><strong>1. Control Connection (Port 2121 - Persistent):</strong> Stays open throughout the entire session. Carries small ASCII commands and 3-digit status codes. <em>No file bytes ever travel over this connection.</em></li>
+      <li><strong>2. Data Connection (Dynamic - Ephemeral):</strong> Created on-demand exclusively for data-intensive transfers (file upload, file download, directory listing). Closed immediately once the transfer finishes (sending TCP FIN).</li>
     </ul>
   </section>
 
   <section>
-    <h2>4. Passive Mode (PASV) vs Active Mode (PORT)</h2>
+    <h2>4. Passive Mode (PASV) vs Active Mode (PORT) & The Port Formula</h2>
     <ul>
       <li><strong>Passive Mode (PASV - Recommended):</strong> The client asks the server to listen (<code>PASV</code>). The server opens an ephemeral TCP port and replies with <code>227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)</code>. The client initiates the TCP connection. Highly firewall and NAT friendly.</li>
-      <li><strong>Active Mode (PORT):</strong> The client opens a listening socket and instructs the server to connect back to it. Firewalls almost always block this inbound connection.</li>
+      <li><strong>Active Mode (PORT):</strong> The client opens a listening socket and instructs the server (<code>PORT h1,h2,h3,h4,p1,p2</code>) to connect back. Client-side firewalls and NAT routers almost always block this inbound connection.</li>
     </ul>
     <div class="callout">
-      <strong>Port Calculation Formula:</strong><br>
-      Given <code>(h1, h2, h3, h4, p1, p2)</code>, the IP address is <code>h1.h2.h3.h4</code> and the port is:<br>
+      <strong>Mathematical Port Encoding Formula (RFC 959):</strong><br>
+      Given <code>(h1, h2, h3, h4, p1, p2)</code>, the IP address is <code>h1.h2.h3.h4</code> and the Port is calculated as:<br>
       <code>Port = (p1 &times; 256) + p2</code><br>
-      <em>Example:</em> <code>(127, 0, 0, 1, 193, 157)</code> &rarr; <code>(193 &times; 256) + 157 = 49408 + 157 = 49565</code>.
+      <em>Example:</em> <code>(127, 0, 0, 1, 193, 157)</code> &rarr; <code>(193 &times; 256) + 157 = 49408 + 157 = 49565</code>.<br>
+      <em>Inverse (Server Decomposition):</em> <code>p1 = port // 256</code>, <code>p2 = port % 256</code>.
     </div>
   </section>
 
   <section>
-    <h2>5. Step-by-Step Code Walkthrough</h2>
-    <ol>
-      <li><strong>Server Start:</strong> Calls <code>socket(AF_INET, SOCK_STREAM)</code>, sets <code>SO_REUSEADDR</code>, binds to port 2121, and listens.</li>
-      <li><strong>Accept & Threading:</strong> Incoming connections trigger <code>accept()</code> and spawn an independent <code>FTPServerSession</code> thread for concurrency.</li>
-      <li><strong>Greeting:</strong> Server sends <code>220 Welcome to CN Lab Python Socket FTP Server</code>.</li>
-      <li><strong>Authentication:</strong> <code>USER student</code> &rarr; <code>331 Password required</code> &rarr; <code>PASS cnlab2026</code> &rarr; <code>230 Logged in</code>.</li>
-      <li><strong>Sandboxing:</strong> Path traversal like <code>CWD ../../</code> is intercepted with <code>os.path.abspath</code>. If outside root, blocked with <code>550 Access Denied</code>.</li>
-      <li><strong>Passive Data Channel:</strong> <code>PASV</code> creates listener on port 0, returns <code>227</code>. Client connects to dynamic data port.</li>
-      <li><strong>File Upload (STOR):</strong> Client streams 8KB chunks, closes data socket (sending TCP FIN). Server reads 0 bytes (EOF), saves file, and sends <code>226</code>.</li>
-      <li><strong>File Download (RETR):</strong> Server streams 8KB chunks over data socket, closes socket, and sends <code>226</code>. Client verifies with MD5 checksum.</li>
-      <li><strong>Termination:</strong> <code>QUIT</code> &rarr; <code>221 Goodbye</code> &rarr; Sockets close cleanly.</li>
-    </ol>
+    <h2>5. Detailed Step-by-Step Code Walkthrough (Every Phase Explained)</h2>
+
+    <h3>Step 1: Server Startup & Listening</h3>
+    <p>The server creates a welcoming socket, binds to IP 127.0.0.1 and Port 2121. It sets <code>SO_REUSEADDR</code> to prevent "Address already in use" errors when restarting, and sets a connection backlog of 10.</p>
+    <pre>
+self.server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+self.server_sock.bind((self.host, self.port))
+self.server_sock.listen(10)
+    </pre>
+    <p>&bull; <code>AF_INET</code>: Specifies IPv4 addressing.<br>&bull; <code>SOCK_STREAM</code>: Specifies connection-oriented TCP byte stream.</p>
+
+    <h3>Step 2: Multi-Client Connection & Concurrency</h3>
+    <p>When a client connects, the main server loop accepts the connection and immediately hands it off to an independent worker thread (<code>FTPServerSession</code>). This ensures the server is non-blocking and handles dozens of concurrent clients simultaneously across different terminal tabs.</p>
+    <pre>
+client_sock, client_addr = self.server_sock.accept()
+session = FTPServerSession(client_sock, client_addr, root_dir, users_db)
+session.start()  # Spawns a dedicated thread!
+    </pre>
+
+    <h3>Step 3: Initial Greeting Code (220)</h3>
+    <p>As soon as the TCP 3-way handshake finishes, the server sends the standard RFC 959 greeting over the control connection: <code>220 Welcome to CN Lab Python Socket FTP Server (RFC 959)\r\n</code>.</p>
+
+    <h3>Step 4: Authentication Handshake (USER & PASS)</h3>
+    <p>1. Client sends: <code>USER student\r\n</code><br>
+    2. Server responds: <code>331 User name student okay, password required.\r\n</code><br>
+    3. Client sends: <code>PASS cnlab2026\r\n</code><br>
+    4. Server validates credentials against the database:<br>
+    &nbsp;&nbsp;&nbsp;&bull; If invalid &rarr; replies <code>530 Authentication failed</code>.<br>
+    &nbsp;&nbsp;&nbsp;&bull; If valid &rarr; sets <code>is_authenticated = True</code> and replies <code>230 User logged in successfully</code>.</p>
+
+    <h3>Step 5: Directory Operations & Security Sandboxing (PWD, CWD)</h3>
+    <p>The server tracks the virtual directory relative to root (e.g. <code>/</code>). When the client issues <code>PWD</code>, it replies with <code>257 "/" is the current directory</code>. For <code>CWD</code>, the server converts the virtual path to a canonical absolute path and strictly validates that it cannot escape the storage root (preventing directory traversal attacks like <code>../../etc/passwd</code>).</p>
+    <pre>
+abs_path = os.path.abspath(os.path.join(self.root_dir, target))
+if not abs_path.startswith(self.root_dir):
+    self.send_response(550, "Access Denied: Path escapes sandbox!")
+    return None
+    </pre>
+
+    <h3>Step 6: The Passive Mode Dance (PASV)</h3>
+    <p>Before any transfer, the client sends <code>PASV</code>. The server binds an ephemeral listener socket to port <code>0</code>, which tells the operating system kernel to allocate an unused high-numbered port. The server reads the assigned port via <code>getsockname()[1]</code>, calculates (p1, p2), and returns <code>227 Entering Passive Mode (127,0,0,1,p1,p2)</code>. The client connects its data socket to that address.</p>
+
+    <h3>Step 7: Directory Listing (LIST)</h3>
+    <p>Client sends <code>LIST</code>. The server sends <code>150 Here comes the directory listing</code>, inspects files in the directory, formats each entry matching standard Unix <code>ls -l</code> format (permissions, size, date, filename), streams those bytes across the <strong>data socket</strong>, closes the data socket, and sends <code>226 Directory send OK</code> on the control socket.</p>
+
+    <h3>Step 8: File Upload (STOR) & The TCP FIN Mechanism</h3>
+    <p>Client sends <code>STOR report.pdf</code>. Server replies <code>150 Ok to send data</code>. Client reads the local file in 8192-byte chunks and sends them across the data socket. When the client finishes writing the file, it calls <code>data_sock.close()</code>. In TCP, closing a socket transmits a <strong>FIN packet</strong>. On the server side, <code>recv(8192)</code> returns 0 bytes (empty string <code>b''</code>), signaling <strong>End-Of-File (EOF)</strong>. Server writes the final chunk, closes the file, and sends <code>226 Transfer complete</code>.</p>
+
+    <h3>Step 9: File Download (RETR) & Throughput Calculation</h3>
+    <p>Client sends <code>RETR report.pdf</code>. Server validates the file exists, gets size via <code>os.path.getsize</code>, and replies <code>150 Opening BINARY mode data connection</code>. Server reads the file in 8192-byte chunks, streams over data socket, and closes the socket. Client reads until EOF, records elapsed time, calculates throughput in KB/s, and receives <code>226 Transfer complete</code>.</p>
+
+    <h3>Step 10: Graceful Disconnect (QUIT)</h3>
+    <p>Client sends <code>QUIT</code>. Server responds <code>221 Goodbye! Closing control connection</code>. Both client and server close their control sockets cleanly, releasing system resources.</p>
   </section>
 
   <section>
-    <h2>6. Understanding curl & 'Unknown Command'</h2>
+    <h2>6. Python Standard Libraries Used & Justification</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Module</th>
+          <th>Functions Used</th>
+          <th>Architectural Justification</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>socket</code></td>
+          <td><code>socket(), bind(), listen(), accept(), connect(), sendall(), recv()</code></td>
+          <td>Provides low-level TCP/IP network socket operations for control and data streams.</td>
+        </tr>
+        <tr>
+          <td><code>threading</code></td>
+          <td><code>Thread(daemon=True), start()</code></td>
+          <td>Enables concurrent multi-client handling so multiple terminal tabs run simultaneously.</td>
+        </tr>
+        <tr>
+          <td><code>os</code></td>
+          <td><code>path.abspath(), path.join(), stat(), remove(), listdir()</code></td>
+          <td>Handles safe jailed filesystem operations, prevents path traversal, and queries file sizes.</td>
+        </tr>
+        <tr>
+          <td><code>hashlib</code></td>
+          <td><code>md5().hexdigest()</code></td>
+          <td>Computes cryptographic checksums to verify 100% loss-free byte delivery across sockets.</td>
+        </tr>
+        <tr>
+          <td><code>time</code></td>
+          <td><code>time(), strftime()</code></td>
+          <td>Measures transfer latency, throughput (KB/s), and formats directory listing timestamps.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>7. Detailed Explanation of curl & 'Unknown Command'</h2>
     <p>When you typed <code>curl</code> inside the interactive FTP shell, you saw: <code>[-] Unknown command 'curl'</code>.</p>
     <ul>
-      <li><strong>Why:</strong> The prompt <code>ftp (student)&gt;</code> only accepts FTP commands (<code>ls</code>, <code>pwd</code>, <code>get</code>, <code>put</code>). <code>curl</code> is a <strong>macOS Terminal command</strong>.</li>
-      <li><strong>Why curl and ls give the same result:</strong> Running <code>curl -u student:cnlab2026 ftp://127.0.0.1:2121/</code> connects to your server and executes <code>PASV</code> + <code>LIST</code>. Both tools receive the exact same directory listing!</li>
+      <li><strong>Why:</strong> The prompt <code>ftp (student)&gt;</code> only accepts FTP commands (<code>ls</code>, <code>pwd</code>, <code>get</code>, <code>put</code>). <code>curl</code> is a <strong>macOS bash/zsh shell command</strong>.</li>
+      <li><strong>Why curl and ls give identical results:</strong> Running <code>curl -u student:cnlab2026 ftp://127.0.0.1:2121/</code> connects to your server and executes <code>PASV</code> + <code>LIST</code>. Both tools receive the exact same directory listing! This proves your server is standard-compliant and works with external industry tools.</li>
       <li><strong>Watching raw packets with curl -v:</strong></li>
     </ul>
     <pre>
@@ -301,7 +371,7 @@ $ curl -v -u student:cnlab2026 ftp://127.0.0.1:2121/
   </section>
 
   <section>
-    <h2>7. Is It Simulation-Based?</h2>
+    <h2>8. Is It Simulation-Based?</h2>
     <ul>
       <li><strong>FTP (Basket 3): 100% Real OS Sockets.</strong> Operates on real operating system TCP sockets (<code>SOCK_STREAM</code>), performs real 3-way handshakes, transfers real binary documents, and verifies 100% data integrity with MD5 checksums.</li>
       <li><strong>DNS (Basket 2): 100% Real OS Sockets.</strong> Real UDP datagrams (<code>SOCK_DGRAM</code>) packing binary RFC 1035 wire packets. Responds to native <code>nslookup</code> and forwards queries to Google DNS (8.8.8.8).</li>
@@ -310,10 +380,10 @@ $ curl -v -u student:cnlab2026 ftp://127.0.0.1:2121/
   </section>
 
   <section>
-    <h2>8. Multi-Client Concurrency (4+ Tabs)</h2>
+    <h2>9. Multi-Client Concurrency (4+ Tabs)</h2>
     <p>Because the server is multi-threaded, multiple clients interact at the same time:</p>
     <ul>
-      <li><strong>Tab 1:</strong> <code>python3 ftp_server.py --port 2121</code> (Server)</li>
+      <li><strong>Tab 1:</strong> <code>python3 ftp_server.py --port 2121</code> (Server listening and logging)</li>
       <li><strong>Tab 2:</strong> <code>python3 ftp_client.py</code> (Client 1: <code>student</code> uploads <code>report.pdf</code>)</li>
       <li><strong>Tab 3:</strong> <code>python3 ftp_client.py</code> (Client 2: <code>admin</code> types <code>ls</code> and immediately sees <code>report.pdf</code>)</li>
       <li><strong>Tab 4:</strong> <code>curl -u student:cnlab2026 ftp://127.0.0.1:2121/report.pdf -o downloaded.pdf</code> (Client 3 downloads simultaneously)</li>
@@ -321,7 +391,7 @@ $ curl -v -u student:cnlab2026 ftp://127.0.0.1:2121/
   </section>
 
   <section>
-    <h2>9. The Unified 3-Tier End-to-End Story</h2>
+    <h2>10. The Unified 3-Tier End-to-End Story</h2>
     <ol>
       <li><strong>Tier 1: DNS (Infrastructure):</strong> Client wants to connect to <code>ftp.cse.myuniv.edu</code>. It asks our authoritative DNS server (<code>dns_server.py</code>), which resolves <code>ftp.cse.myuniv.edu</code> &rarr; <code>192.168.151.5</code>.</li>
       <li><strong>Tier 2: ARP (Data Link):</strong> To send IP packets to <code>192.168.151.5</code> on the local network, host broadcasts: <em>"Who has 192.168.151.5?"</em>. The switch floods it, the target answers with its MAC, and the host updates its ARP cache.</li>
@@ -330,7 +400,7 @@ $ curl -v -u student:cnlab2026 ftp://127.0.0.1:2121/
   </section>
 
   <section>
-    <h2>10. Top Lab Viva Questions & Answers</h2>
+    <h2>11. Top Lab Viva Questions & Answers</h2>
 
     <div class="viva-box">
       <div class="viva-q">Q1: What is out-of-band signaling in FTP?</div>
