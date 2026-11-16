@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CN Lab: Complete Project & Viva Master Guide</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-subtle: rgba(56, 189, 248, 0.1);
+      --border: #334155;
+      --code-bg: #090d16;
+      --green: #4ade80;
+      --red: #f87171;
+      --orange: #fb923c;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --card-bg: #ffffff;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --accent: #0284c7;
+        --accent-subtle: rgba(2, 132, 199, 0.08);
+        --border: #e2e8f0;
+        --code-bg: #f1f5f9;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 1rem;
+      max-width: 800px;
+      margin: 0 auto;
+      font-size: 16px;
+    }
+    header {
+      text-align: center;
+      padding: 2rem 1rem;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      font-weight: 800;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      margin-top: 0.5rem;
+    }
+    section {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    h2 {
+      font-size: 1.3rem;
+      color: var(--accent);
+      margin-bottom: 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    h3 {
+      font-size: 1.05rem;
+      margin: 1rem 0 0.4rem;
+      color: var(--text);
+    }
+    p, ul, ol {
+      margin-bottom: 0.8rem;
+    }
+    ul, ol {
+      padding-left: 1.4rem;
+    }
+    li { margin-bottom: 0.4rem; }
+    strong { color: var(--accent); }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.9rem;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      margin: 0.8rem 0;
+      color: var(--text);
+    }
+    code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.88em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.88rem;
+    }
+    th, td {
+      padding: 0.6rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    th {
+      background: var(--accent-subtle);
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .callout {
+      background: var(--accent-subtle);
+      border-left: 4px solid var(--accent);
+      padding: 0.9rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1rem 0;
+    }
+    .viva-box {
+      background: rgba(248, 113, 113, 0.08);
+      border-left: 4px solid var(--red);
+      padding: 1rem;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 1rem;
+    }
+    .viva-q {
+      font-weight: 700;
+      color: var(--red);
+      margin-bottom: 0.3rem;
+    }
+    .viva-a {
+      font-size: 0.92rem;
+    }
+    footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Computer Networks Lab Master Guide</h1>
+    <p class="subtitle">Complete Study & Viva Preparation Guide for ARP, DNS & FTP</p>
+    <span class="badge">CSE/PC/B/S/314 &bull; Jadavpur University</span>
+  </header>
+
+  <section>
+    <h2>1. Project Requirements & Baskets</h2>
+    <p>The lab requirement mandates implementing one protocol from each of the three layer baskets using standard Python sockets:</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Basket</th>
+          <th>Protocol</th>
+          <th>Layer</th>
+          <th>Transport</th>
+          <th>RFC Standard</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Basket 1</strong></td>
+          <td>ARP (Address Resolution)</td>
+          <td>Data Link / Network</td>
+          <td>UDP (Simulated Switch)</td>
+          <td>RFC 826</td>
+        </tr>
+        <tr>
+          <td><strong>Basket 2</strong></td>
+          <td>DNS (Domain Name System)</td>
+          <td>Infrastructure / Transport</td>
+          <td>UDP Port 53 / 5300</td>
+          <td>RFC 1035</td>
+        </tr>
+        <tr>
+          <td><strong>Basket 3</strong></td>
+          <td>FTP (File Transfer Protocol)</td>
+          <td>Application Layer</td>
+          <td>TCP Port 2121</td>
+          <td>RFC 959</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. Why TCP for FTP (and not UDP)?</h2>
+    <ul>
+      <li><strong>100% Data Integrity:</strong> File transfer cannot tolerate a single dropped, duplicated, or corrupted bit. TCP guarantees delivery through sequence numbers, acknowledgments (ACKs), and automatic retransmissions (ARQ).</li>
+      <li><strong>In-Order Byte Delivery:</strong> TCP guarantees packets arrive in the exact order sent. UDP datagrams may arrive out-of-order or duplicate.</li>
+      <li><strong>Flow and Congestion Control:</strong> TCP uses sliding windows to avoid buffer overflow and adjusts transmission speed to network congestion.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. Dual-Connection Architecture (Out-of-Band Signaling)</h2>
+    <p>Unlike HTTP, standard FTP uses <strong>TWO separate TCP connections</strong>:</p>
+    <pre>
++------------------+                                      +------------------+
+|    FTP CLIENT    |                                      |    FTP SERVER    |
++------------------+                                      +------------------+
+        |                                                          |
+        | ====== 1. Control Connection (Port 2121 - Persistent) ===|
+        |        Commands: USER, PASS, PWD, PASV, RETR, STOR       |
+        |        Replies : 220, 331, 230, 227, 150, 226            |
+        |                                                          |
+        | ====== 2. Data Connection (Dynamic Port - Ephemeral) ====|
+        |        Transfers: Raw File Bytes or Directory Listing    |
+        |        (Opens on demand, closes when transfer finishes)  |
+        v                                                          v
+    </pre>
+    <ul>
+      <li><strong>Control Connection (Port 2121):</strong> Stays open throughout the entire session. Carries small ASCII commands and 3-digit status codes. Never transfers file bytes.</li>
+      <li><strong>Data Connection:</strong> Opened dynamically on-demand exclusively for data-intensive transfers (file upload, file download, directory listing). Closed as soon as transfer finishes (sending TCP FIN).</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. Passive Mode (PASV) vs Active Mode (PORT)</h2>
+    <ul>
+      <li><strong>Passive Mode (PASV - Recommended):</strong> The client asks the server to listen (<code>PASV</code>). The server opens an ephemeral TCP port and replies with <code>227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)</code>. The client initiates the TCP connection. Highly firewall and NAT friendly.</li>
+      <li><strong>Active Mode (PORT):</strong> The client opens a listening socket and instructs the server to connect back to it. Firewalls almost always block this inbound connection.</li>
+    </ul>
+    <div class="callout">
+      <strong>Port Calculation Formula:</strong><br>
+      Given <code>(h1, h2, h3, h4, p1, p2)</code>, the IP address is <code>h1.h2.h3.h4</code> and the port is:<br>
+      <code>Port = (p1 &times; 256) + p2</code><br>
+      <em>Example:</em> <code>(127, 0, 0, 1, 193, 157)</code> &rarr; <code>(193 &times; 256) + 157 = 49408 + 157 = 49565</code>.
+    </div>
+  </section>
+
+  <section>
+    <h2>5. Step-by-Step Code Walkthrough</h2>
+    <ol>
+      <li><strong>Server Start:</strong> Calls <code>socket(AF_INET, SOCK_STREAM)</code>, sets <code>SO_REUSEADDR</code>, binds to port 2121, and listens.</li>
+      <li><strong>Accept & Threading:</strong> Incoming connections trigger <code>accept()</code> and spawn an independent <code>FTPServerSession</code> thread for concurrency.</li>
+      <li><strong>Greeting:</strong> Server sends <code>220 Welcome to CN Lab Python Socket FTP Server</code>.</li>
+      <li><strong>Authentication:</strong> <code>USER student</code> &rarr; <code>331 Password required</code> &rarr; <code>PASS cnlab2026</code> &rarr; <code>230 Logged in</code>.</li>
+      <li><strong>Sandboxing:</strong> Path traversal like <code>CWD ../../</code> is intercepted with <code>os.path.abspath</code>. If outside root, blocked with <code>550 Access Denied</code>.</li>
+      <li><strong>Passive Data Channel:</strong> <code>PASV</code> creates listener on port 0, returns <code>227</code>. Client connects to dynamic data port.</li>
+      <li><strong>File Upload (STOR):</strong> Client streams 8KB chunks, closes data socket (sending TCP FIN). Server reads 0 bytes (EOF), saves file, and sends <code>226</code>.</li>
+      <li><strong>File Download (RETR):</strong> Server streams 8KB chunks over data socket, closes socket, and sends <code>226</code>. Client verifies with MD5 checksum.</li>
+      <li><strong>Termination:</strong> <code>QUIT</code> &rarr; <code>221 Goodbye</code> &rarr; Sockets close cleanly.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>6. Understanding curl & 'Unknown Command'</h2>
+    <p>When you typed <code>curl</code> inside the interactive FTP shell, you saw: <code>[-] Unknown command 'curl'</code>.</p>
+    <ul>
+      <li><strong>Why:</strong> The prompt <code>ftp (student)&gt;</code> only accepts FTP commands (<code>ls</code>, <code>pwd</code>, <code>get</code>, <code>put</code>). <code>curl</code> is a <strong>macOS Terminal command</strong>.</li>
+      <li><strong>Why curl and ls give the same result:</strong> Running <code>curl -u student:cnlab2026 ftp://127.0.0.1:2121/</code> connects to your server and executes <code>PASV</code> + <code>LIST</code>. Both tools receive the exact same directory listing!</li>
+      <li><strong>Watching raw packets with curl -v:</strong></li>
+    </ul>
+    <pre>
+$ curl -v -u student:cnlab2026 ftp://127.0.0.1:2121/
+< 220 Welcome to CN Lab Python Socket FTP Server (RFC 959)
+> USER student
+< 331 User name student okay, password required.
+> PASS cnlab2026
+< 230 User student logged in successfully.
+> PWD
+< 257 "/" is the current directory.
+> PASV
+< 227 Entering Passive Mode (127,0,0,1,193,157)
+> LIST
+< 150 Here comes the directory listing.
+-rw-r--r-- 1 owner group      32837 Nov 17 02:55 report.pdf
+-rw-r--r-- 1 owner group        104 Nov 17 02:10 welcome.txt
+< 226 Directory send OK.
+    </pre>
+  </section>
+
+  <section>
+    <h2>7. Is It Simulation-Based?</h2>
+    <ul>
+      <li><strong>FTP (Basket 3): 100% Real OS Sockets.</strong> Operates on real operating system TCP sockets (<code>SOCK_STREAM</code>), performs real 3-way handshakes, transfers real binary documents, and verifies 100% data integrity with MD5 checksums.</li>
+      <li><strong>DNS (Basket 2): 100% Real OS Sockets.</strong> Real UDP datagrams (<code>SOCK_DGRAM</code>) packing binary RFC 1035 wire packets. Responds to native <code>nslookup</code> and forwards queries to Google DNS (8.8.8.8).</li>
+      <li><strong>ARP (Basket 1): Real Packets over a Simulated Switch.</strong> The 42-byte RFC 826 packet (14-byte Ethernet + 28-byte ARP) is authentic binary packed via <code>struct</code>. The switch is simulated over UDP because raw Layer-2 Ethernet sockets require <code>sudo</code>/root privileges on macOS and Windows.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Multi-Client Concurrency (4+ Tabs)</h2>
+    <p>Because the server is multi-threaded, multiple clients interact at the same time:</p>
+    <ul>
+      <li><strong>Tab 1:</strong> <code>python3 ftp_server.py --port 2121</code> (Server)</li>
+      <li><strong>Tab 2:</strong> <code>python3 ftp_client.py</code> (Client 1: <code>student</code> uploads <code>report.pdf</code>)</li>
+      <li><strong>Tab 3:</strong> <code>python3 ftp_client.py</code> (Client 2: <code>admin</code> types <code>ls</code> and immediately sees <code>report.pdf</code>)</li>
+      <li><strong>Tab 4:</strong> <code>curl -u student:cnlab2026 ftp://127.0.0.1:2121/report.pdf -o downloaded.pdf</code> (Client 3 downloads simultaneously)</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>9. The Unified 3-Tier End-to-End Story</h2>
+    <ol>
+      <li><strong>Tier 1: DNS (Infrastructure):</strong> Client wants to connect to <code>ftp.cse.myuniv.edu</code>. It asks our authoritative DNS server (<code>dns_server.py</code>), which resolves <code>ftp.cse.myuniv.edu</code> &rarr; <code>192.168.151.5</code>.</li>
+      <li><strong>Tier 2: ARP (Data Link):</strong> To send IP packets to <code>192.168.151.5</code> on the local network, host broadcasts: <em>"Who has 192.168.151.5?"</em>. The switch floods it, the target answers with its MAC, and the host updates its ARP cache.</li>
+      <li><strong>Tier 3: FTP (Application):</strong> With MAC and IP resolved, client initiates a reliable TCP connection on port 2121 to our FTP server (<code>ftp_server.py</code>), authenticates, opens a passive data channel (PASV), and transfers files with 100% data integrity verified by MD5 hashes.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>10. Top Lab Viva Questions & Answers</h2>
+
+    <div class="viva-box">
+      <div class="viva-q">Q1: What is out-of-band signaling in FTP?</div>
+      <div class="viva-a">FTP uses two separate connections: a persistent Control Connection (port 2121) for commands and replies, and a temporary Data Connection negotiated on-demand for transferring file bytes or directory listings. This allows commands (like aborting a transfer) to be sent without corrupting the file stream.</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q2: Why is TCP used for FTP instead of UDP?</div>
+      <div class="viva-a">File transfer cannot tolerate a single dropped, duplicated, or reordered bit. TCP provides guaranteed delivery, sequencing, acknowledgments (ACKs), automatic retransmissions, and sliding-window flow control. UDP provides none of these guarantees.</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q3: Explain Passive Mode (PASV) vs Active Mode (PORT).</div>
+      <div class="viva-a">In Active Mode (PORT), the client opens a data port and asks the server to connect back to it, which is almost always blocked by client-side firewalls and NAT routers. In Passive Mode (PASV), the server opens a temporary high port and the client initiates the connection to the server, which traverses firewalls smoothly.</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q4: How does the server know when an uploaded file is complete without an EOF character?</div>
+      <div class="viva-a">When the sender finishes writing all file bytes, it closes the data socket (<code>data_sock.close()</code>). In TCP, closing a socket sends a FIN packet. On the receiving side, <code>recv()</code> returns 0 bytes (empty string <code>b''</code>), which signals End-Of-File (EOF).</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q5: How do you calculate the port number from (h1, h2, h3, h4, p1, p2)?</div>
+      <div class="viva-a">The IP is <code>h1.h2.h3.h4</code>. The port is computed as: <code>Port = (p1 &times; 256) + p2</code>. For example, (193, 157) gives (193 &times; 256) + 157 = 49565.</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q6: What is directory traversal and how does your server prevent it?</div>
+      <div class="viva-a">Directory traversal (e.g. <code>CWD ../../</code>) is an attack where a user attempts to navigate out of the root folder to access sensitive host files. Our server normalizes all requested paths with <code>os.path.abspath</code> and verifies that the canonical path starts with <code>self.root_dir</code>, returning 550 Access Denied if it escapes.</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q7: How did you verify data integrity across the socket?</div>
+      <div class="viva-a">We compute the MD5 cryptographic checksum of the local file before uploading and compare it with the MD5 checksum of the downloaded file. Both hashes match byte-for-byte, verifying 100% loss-free transmission over TCP.</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q8: Why does DNS use UDP while FTP uses TCP?</div>
+      <div class="viva-a">DNS queries and replies are small (under 512 bytes), so establishing a TCP 3-way handshake would double the lookup latency. Hence, DNS uses UDP for speed. FTP transfers large binary files requiring reliability, so it must use TCP.</div>
+    </div>
+
+    <div class="viva-box">
+      <div class="viva-q">Q9: What is Gratuitous ARP?</div>
+      <div class="viva-a">A host broadcasting an ARP packet announcing its own IP (sender IP = target IP). It allows other hosts to update their ARP tables and detects duplicate IP address conflicts on the network.</div>
+    </div>
+
+  </section>
+
+  <footer>
+    <p>Computer Networks Laboratory Examination Preparation &bull; Jadavpur University</p>
+    <p>All content generated from complete session trajectory</p>
+  </footer>
+
+</body>
+</html>
