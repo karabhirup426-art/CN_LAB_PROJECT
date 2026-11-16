@@ -6,7 +6,7 @@
 | Basket | Protocol Chosen | Layer | Implementation Folder | Transport Protocol | RFC Specification |
 |---|---|---|---|---|---|
 | **Basket 1** | **ARP** (Address Resolution Protocol) | Data Link / Network | `arp/` | UDP (simulated L2 Ethernet switch) | [RFC 826](https://datatracker.ietf.org/doc/html/rfc826) / [RFC 903](https://datatracker.ietf.org/doc/html/rfc903) |
-| **Basket 2** | **DNS** (Domain Name System) | Transport / Infrastructure | `samim code/dns/` | UDP port 53 / 5300 | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
+| **Basket 2** | **DNS** (Domain Name System) | Transport / Infrastructure | `dns/` | UDP port 53 / 5300 | [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035) |
 | **Basket 3** | **FTP** (File Transfer Protocol) | Application Layer | `ftp/` | TCP port 2121 (Control) + Ephemeral (Data) | [RFC 959](https://datatracker.ietf.org/doc/html/rfc959) |
 
 ---
@@ -26,7 +26,7 @@ Our three implementations form a complete, realistic networking pipeline from ho
        v                                      v                                    v
 +-----------------------+              +----------------------+             +---------------------+
 |      DNS SERVER       |              |  L2 LEARNING SWITCH  |             |     FTP SERVER      |
-|  (samim code/dns/)    |              |       (arp/)         |             |       (ftp/)        |
+|       (dns/)          |              |       (arp/)         |             |       (ftp/)        |
 | UDP Port 53 / 5300    |              | Floods broadcast     |             | Port 2121 (Control) |
 | Answers 192.168.151.5 |              | Unicasts MAC reply   |             | Port PASV (Data)    |
 +-----------------------+              +----------------------+             +---------------------+
@@ -81,7 +81,7 @@ python3 demo.py --hex
 
 ### 2. DNS Demonstration
 ```bash
-cd "samim code/dns"
+cd dns
 python3 demo.py
 ```
 *(Add `--offline` if you do not have an active internet connection to skip external 8.8.8.8 forwarding).*
@@ -124,11 +124,11 @@ For interactive demonstrations during laboratory evaluation, run the protocols i
 ### Basket 2: DNS (2 Terminals)
 * **Terminal 1 (DNS Server):**
   ```bash
-  cd "samim code/dns" && python3 dns_server.py --port 5300 --forward
+  cd dns && python3 dns_server.py --port 5300 --forward
   ```
 * **Terminal 2 (DNS Client Queries):**
   ```bash
-  cd "samim code/dns"
+  cd dns
   python3 dns_client.py www.cse.myuniv.edu -p 5300 --hex
   python3 dns_client.py portal.cse.myuniv.edu -p 5300    # Traces CNAME chain
   python3 dns_client.py cse.myuniv.edu -t MX -p 5300     # Mail exchange record
@@ -176,14 +176,14 @@ Unit test suites can be executed either from the root project directory or direc
 ### Method 1: From Root Directory (Test Discovery)
 ```bash
 python3 -m unittest discover -s arp -v
-python3 -m unittest discover -s "samim code/dns" -v
+python3 -m unittest discover -s dns -v
 python3 -m unittest discover -s ftp -v
 ```
 
 ### Method 2: Inside Subdirectories
 ```bash
 cd arp && python3 test_arp.py
-cd "samim code/dns" && python3 test_dns.py
+cd dns && python3 test_dns.py
 cd ftp && python3 test_ftp.py
 ```
 
@@ -207,16 +207,17 @@ CN_LAB_PROJECT/
 │   ├── HOW_TO_SHOW_ARP.md       # Multi-terminal lab demonstration guide & viva Q&A
 │   └── README.md                # Module documentation
 │
-├── samim code/                  # BASKET 2: Domain Name System (RFC 1035)
-│   ├── dns/
-│   │   ├── dns_message.py       # RFC 1035 binary message parser (labels, compression pointers)
-│   │   ├── dns_server.py        # Authoritative DNS server (zone.txt, CNAME chains, forwarding)
-│   │   ├── dns_client.py        # Lightweight nslookup client with retries and hex dumps
-│   │   ├── zone.txt             # Authoritative zone database for cse.myuniv.edu
-│   │   ├── demo.py              # Scripted demonstration of all DNS query types and caching
-│   │   └── test_dns.py          # DNS message encoding and server unit test suite
-│   ├── HOW_TO_SHOW.md           # Lab demonstration script and viva questions
+├── dns/                         # BASKET 2: Domain Name System (RFC 1035)
+│   ├── dns_message.py           # RFC 1035 binary message parser (labels, compression pointers)
+│   ├── dns_server.py            # Authoritative DNS server (zone.txt, CNAME chains, forwarding)
+│   ├── dns_client.py            # Lightweight nslookup client with retries and hex dumps
+│   ├── zone.txt                 # Authoritative zone database for cse.myuniv.edu
+│   ├── demo.py                  # 7-step automated demonstration of all query types and caching
+│   ├── test_dns.py              # Unit & integration test suite (9 test cases)
+│   ├── HOW_TO_SHOW_DNS.md       # Multi-terminal lab demonstration guide & viva Q&A
 │   └── README.md                # Module documentation
+│
+├── samim code/                  # Samim Sekh's own ARP version and combined demo notes
 │
 └── ftp/                         # BASKET 3: File Transfer Protocol (RFC 959)
     ├── ftp_server.py            # Multi-threaded RFC 959 server (Dual-socket: Control + PASV/PORT)
@@ -235,5 +236,5 @@ CN_LAB_PROJECT/
 
 Comprehensive step-by-step demonstration scripts, Wireshark filter instructions, and examination viva questions are provided in each protocol's dedicated guide:
 * **ARP Viva & Guide:** [`arp/HOW_TO_SHOW_ARP.md`](arp/HOW_TO_SHOW_ARP.md)
-* **DNS Viva & Guide:** [`samim code/HOW_TO_SHOW.md`](samim%20code/HOW_TO_SHOW.md)
+* **DNS Viva & Guide:** [`dns/HOW_TO_SHOW_DNS.md`](dns/HOW_TO_SHOW_DNS.md)
 * **FTP Viva & Guide:** [`ftp/HOW_TO_SHOW_FTP.md`](ftp/HOW_TO_SHOW_FTP.md)
